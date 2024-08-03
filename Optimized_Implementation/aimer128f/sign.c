@@ -66,17 +66,17 @@ void aim2_mpc_N(mult_chk_N_t *mult_chk,
   // --> z = x * pt
   GF_mul_N(mult_chk->z_shares[0], (const GF *)mult_chk->x_shares[0],
            aim2_constants[0]);
-  GF_transposed_matmul_add_N(mult_chk->z_shares[0],
-                             (const GF *)mult_chk->x_shares[0],
-                             aim2_e1_power_matrix);
+  GF_transposed_matmul_add_N_opt(mult_chk->z_shares[0],
+                                 (const GF *)mult_chk->x_shares[0],
+                                 aim2_e1_power_matrix_opt);
   GF_transposed_matmul_add_N(mult_chk->x_shares[AIMER_L],
                              (const GF *)mult_chk->x_shares[0], matrix_A[0]);
 
   GF_mul_N(mult_chk->z_shares[1], (const GF *)mult_chk->x_shares[1],
            aim2_constants[1]);
-  GF_transposed_matmul_add_N(mult_chk->z_shares[1],
-                             (const GF *)mult_chk->x_shares[1],
-                             aim2_e2_power_matrix);
+  GF_transposed_matmul_add_N_opt(mult_chk->z_shares[1],
+                                 (const GF *)mult_chk->x_shares[1],
+                                 aim2_e2_power_matrix_opt);
   GF_transposed_matmul_add_N(mult_chk->x_shares[AIMER_L],
                              (const GF *)mult_chk->x_shares[1], matrix_A[1]);
 

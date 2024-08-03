@@ -6,6 +6,7 @@ NISTFLAGS = -Wno-sign-compare -Wno-unused-but-set-variable -Wno-unused-parameter
 AVX2FLAGS = -mavx2 -mpclmul
 
 EXECUTABLE_TESTAIM2   = tests/test_aim2
+EXECUTABLE_DEVEL      = tests/devel
 EXECUTABLE_TESTSIGN   = tests/test_sign
 EXECUTABLE_TESTSPEED  = tests/test_speed
 EXECUTABLE_MICROBENCH = bench/microbench
@@ -24,7 +25,9 @@ dev: $(EXECUTABLE_DEVEL)
 
 .c.o:
 	$(CC) -c $(CFLAGS) $(AVX2FLAGS) $< -o $@
-$(EXECUTABLE_DEVEL): $(EXECUTABLE_DEVEL).o aim2.o field.o hash.o common/keccak_avx2/fips202.o common/keccak_avx2/KeccakP-1600-AVX2.s common/keccak4x/KeccakP-1600-times4-SIMD256.o
+
+$(EXECUTABLE_DEVEL): $(EXECUTABLE_DEVEL).c aim2.c field.c hash.c common/keccak_avx2/fips202.c common/keccak_avx2/KeccakP-1600-AVX2.s common/keccak4x/KeccakP-1600-times4-SIMD256.c
+	$(CC) $(CFLAGS) $(AVX2FLAGS) $^ -o $@
 
 $(EXECUTABLE_TESTAIM2): $(EXECUTABLE_TESTAIM2).o $(AIMER) $(SHA3) $(RNG)
 	$(CC) $(CFLAGS) $(AVX2FLAGS) $^ -o $@

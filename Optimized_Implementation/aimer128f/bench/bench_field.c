@@ -37,11 +37,21 @@ void bench_field(void)
     int BENCH = 3000;
     BENCH_FUNCTION(GF_add, c, a, b);
     BENCH_FUNCTION(GF_mul, c, a, b);
+    // New functions
+    BENCH_FUNCTION(GF_mul_red, c, a, b);
+    BENCH_FUNCTION(GF_mul_karat, c, a, b);
+    BENCH_FUNCTION(GF_mul_karat_red, c, a, b);
+
     BENCH_FUNCTION(GF_sqr, c, a);
     BENCH_FUNCTION(GF_mul_N, C, A, b);
+   
+    // New function
+    BENCH_FUNCTION(GF_mul_N_karat_red, C, A, b);
+
     BENCH_FUNCTION(GF_sqr_N, C, A);
     BENCH_FUNCTION(POLY_mul_add_N, LO, HI, A, b);
     BENCH_FUNCTION(POLY_red_N, LO, HI);
+    BENCH = 500;
     BENCH_FUNCTION(GF_transposed_matmul, c, a, (const GF(*))matrix_A);
     BENCH_FUNCTION(GF_transposed_matmul_add_N, C, A, (const GF(*))matrix_A);
 }
