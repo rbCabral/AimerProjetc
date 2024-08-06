@@ -35,11 +35,13 @@ void GF_sqr_N(GF c[AIMER_N], const GF a[AIMER_N]);
 
 #define GF_transposed_matmul AIMER_NAMESPACE(GF_transposed_matmul)
 void GF_transposed_matmul(GF c, const GF a, const GF b[AIM2_NUM_BITS_FIELD]);
+void GF_transposed_matmul2(GF c, const GF a, const GF b[AIM2_NUM_BITS_FIELD]);
 #define GF_transposed_matmul_add_N AIMER_NAMESPACE(GF_transposed_matmul_add_N)
 void GF_transposed_matmul_add_N(GF c[AIMER_N], const GF a[AIMER_N],
                                 const GF b[AIM2_NUM_BITS_FIELD]);
 
 void GF_transposed_matmul_add_N_A(GF c[AIMER_N], const GF a[AIMER_N],const uint64_t bl[AIM2_NUM_BITS_FIELD],const uint64_t bh[AIM2_NUM_BITS_FIELD]);
+void GF_transposed_matmul_add_N_M(GF c[AIMER_N], const GF a[AIMER_N],const GF b[AIM2_NUM_BITS_FIELD]);
 
 #define POLY_mul_add_N AIMER_NAMESPACE(POLY_mul_add_N)
 void POLY_mul_add_N(GF lo[AIMER_N], GF hi[AIMER_N],

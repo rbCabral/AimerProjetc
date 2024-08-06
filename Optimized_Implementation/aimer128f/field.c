@@ -5,20 +5,6 @@
 #include <stdint.h>
 #include <immintrin.h>
 
-void print_256(__m256i x){
-    uint64_t c[4];
-    _mm256_storeu_si256((__m256i*)c+0,x);
-    printf("%8.16lx %8.16lx %8.16lx %8.16lx\n", c[3],c[2],c[1],c[0]);
-}
-
-static void printBytes(const uint8_t* in, int len){
-    int i;
-    for(i=0;i<len;i++){
-        printf("%.2X", in[i]);
-    }
-    printf("\n");
-}
-
 void GF_to_bytes(uint8_t *out, const GF in)
 {
   int i, j;
@@ -370,10 +356,6 @@ void GF_transposed_matmul_add_N(GF c[AIMER_N], const GF a[AIMER_N],
   const __m256i zero = _mm256_setzero_si256();
   __m256i m0, m1, m2, m3, t;
 
-  printBytes(a[0],16);
-  printBytes(b[0],16);
-  getchar();
-
   for (size_t party = 0; party < AIMER_N; party += 4)
   {
     const __m256i shift = _mm256_set_epi64x(0, 0, 1, 1);
@@ -384,33 +366,16 @@ void GF_transposed_matmul_add_N(GF c[AIMER_N], const GF a[AIMER_N],
     m2 = _mm256_loadu_si256((const __m256i *)c[party]);
     m3 = _mm256_loadu_si256((const __m256i *)c[party + 2]);
 
-    // printf("party=%d\n",party);
-    // print_256(m0);
-    // print_256(m1);
-    // // getchar();
-
     // ai = a[party + i].hi x4
     a0 = _mm256_permute4x64_epi64(m0, 0x55);
     a1 = _mm256_permute4x64_epi64(m0, 0xff);
     a2 = _mm256_permute4x64_epi64(m1, 0x55);
     a3 = _mm256_permute4x64_epi64(m1, 0xff);
 
-    // print_256(a0);
-    // print_256(a1);
-    // print_256(a2);
-    // print_256(a3);
-    // // getchar();
-
     a0 = _mm256_sllv_epi64(a0, shift);
     a1 = _mm256_sllv_epi64(a1, shift);
     a2 = _mm256_sllv_epi64(a2, shift);
     a3 = _mm256_sllv_epi64(a3, shift);
-
-    // print_256(a0);
-    // print_256(a1);
-    // print_256(a2);
-    // print_256(a3);
-    // getchar();
 
     // ci = [c[party + i].lo | c[party + i].hi | 0 | 0]
     c0 = _mm256_permute2x128_si256(m2, m2, 0x80);
@@ -495,8 +460,6 @@ void GF_transposed_matmul_add_N(GF c[AIMER_N], const GF a[AIMER_N],
     _mm256_storeu_si256((__m256i *)c[party], c0);
     _mm256_storeu_si256((__m256i *)c[party + 2], c2);
   }
-  printBytes(c[0],16);
-  getchar();
 }
 
 void POLY_mul_add_N(GF lo[AIMER_N], GF hi[AIMER_N],

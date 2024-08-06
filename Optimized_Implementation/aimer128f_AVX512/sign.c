@@ -18,7 +18,7 @@
 #include "shake128.h"
 
 
-#define BENCH 4000
+#define BENCH 400
 // #define benchPhases
 
 static void printBytes(const uint8_t* in, int len){
@@ -308,13 +308,16 @@ void aim2_mpc_N(mult_chk_N_t *mult_chk,
   // --> z = x * pt
   // BENCH_FUNCTION(GF_mul_N,mult_chk->z_shares[0], (const GF *)mult_chk->x_shares[0], aim2_constants[0]);
   GF_mul_N(mult_chk->z_shares[0], (const GF *)mult_chk->x_shares[0], aim2_constants[0]);
-  // GF_transposed_matmul_add_N_A(mult_chk->z_shares[0], (const GF *)mult_chk->x_shares[0],aim2_e1_power_matrixLow,aim2_e1_power_matrixHigh);
-  GF_transposed_matmul_add_N(mult_chk->z_shares[0], (const GF *)mult_chk->x_shares[0],aim2_e1_power_matrix);
+  BENCH_FUNCTION(GF_transposed_matmul_add_N_A,mult_chk->z_shares[0], (const GF *)mult_chk->x_shares[0],aim2_e1_power_matrixLow,aim2_e1_power_matrixHigh);
+  BENCH_FUNCTION(GF_transposed_matmul_add_N,mult_chk->z_shares[0], (const GF *)mult_chk->x_shares[0],aim2_e1_power_matrix);
   GF_transposed_matmul_add_N(mult_chk->x_shares[AIMER_L],(const GF *)mult_chk->x_shares[0], matrix_A[0]);
+  // GF_transposed_matmul_add_N_M(mult_chk->x_shares[AIMER_L],(const GF *)mult_chk->x_shares[0], matrix_A[0]);
 
   GF_mul_N(mult_chk->z_shares[1], (const GF *)mult_chk->x_shares[1],aim2_constants[1]);
   GF_transposed_matmul_add_N(mult_chk->z_shares[1],(const GF *)mult_chk->x_shares[1],aim2_e2_power_matrix);
+  // GF_transposed_matmul_add_N_A(mult_chk->z_shares[0], (const GF *)mult_chk->x_shares[0],aim2_e2_power_matrixLow,aim2_e2_power_matrixHigh);
   GF_transposed_matmul_add_N(mult_chk->x_shares[AIMER_L],(const GF *)mult_chk->x_shares[1], matrix_A[1]);
+  // GF_transposed_matmul_add_N_M(mult_chk->x_shares[AIMER_L],(const GF *)mult_chk->x_shares[1], matrix_A[1]);
 
   // x ^ {2 ^ e - 1} = pt + ct
   // --> x ^ {2 ^ e} + x * ct = x * pt
@@ -358,7 +361,6 @@ void run_phase_1(signature_t *sign,
   GF matrix_A[AIMER_L][AIM2_NUM_BITS_FIELD];
   GF vector_b = {0,};
   generate_matrix_LU(matrix_A, vector_b, sk + AIM2_NUM_BYTES_FIELD);
-
   // generate per-signature randomness
   uint8_t random[SECURITY_BYTES];
   randombytes(random, SECURITY_BYTES);
@@ -689,7 +691,7 @@ int crypto_sign_signature(uint8_t *sig, size_t *siglen,
   #endif
 
   // BENCH_FUNCTION(run_phase_1V2,sign, commits,(uint8_t (*)[2 * AIMER_N - 1][AIMER_SEED_SIZE])nodes, mult_chk,alpha_v_shares, sk, m, mlen);
-  // BENCH_FUNCTION(run_phase_1,sign, commits, (uint8_t (*)[2 * AIMER_N - 1][AIMER_SEED_SIZE])nodes, mult_chk, alpha_v_shares, sk, m, mlen);
+  BENCH_FUNCTION(run_phase_1,sign, commits, (uint8_t (*)[2 * AIMER_N - 1][AIMER_SEED_SIZE])nodes, mult_chk, alpha_v_shares, sk, m, mlen);
   // run_phase_1V2(sign, commits,(uint8_t (*)[2 * AIMER_N - 1][AIMER_SEED_SIZE])nodes, mult_chk,alpha_v_shares, sk, m, mlen);
   run_phase_1(sign, commits,(uint8_t (*)[2 * AIMER_N - 1][AIMER_SEED_SIZE])nodes, mult_chk,alpha_v_shares, sk, m, mlen);
 

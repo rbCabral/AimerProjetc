@@ -16,9 +16,11 @@
 
 #include "bench.h"
 
+// #define bench_GF
+// #define bench_AIMER_MPC_N
+#define benchPhases
 
-#define BENCH 5000
-// #define benchPhases
+// #define BENCH 5000
 
 void commit_and_expand_tape_x4(tape_t *tapes, uint8_t *commits,
                                const hash_instance_x4 *ctx_precom,
@@ -193,7 +195,6 @@ void run_phase_1(signature_t *sign,
       for (size_t j = 0; j < 4; j++)
       {
         // compute offsets
-        // BENCH_FUNCTION(GF_add,delta.pt_share, delta.pt_share, tapes[j].pt_share);
         GF_add(delta.pt_share, delta.pt_share, tapes[j].pt_share);
         GF_add(delta.t_shares[0], delta.t_shares[0], tapes[j].t_shares[0]);
         GF_add(delta.t_shares[1], delta.t_shares[1], tapes[j].t_shares[1]);
@@ -220,7 +221,13 @@ void run_phase_1(signature_t *sign,
         }
 
         // run the MPC simulation and prepare the mult check inputs
-        BENCH_FUNCTION(GF_copy,mult_chk[rep].pt_share[party + j], tapes[j].pt_share);
+        
+        #ifdef bench_GF
+          #define BENCH 15000
+            BENCH_FUNCTION(GF_add,delta.pt_share, delta.pt_share, tapes[j].pt_share);
+            BENCH_FUNCTION(GF_copy,mult_chk[rep].pt_share[party + j], tapes[j].pt_share);
+        #endif
+
         GF_copy(mult_chk[rep].pt_share[party + j], tapes[j].pt_share);
         GF_copy(mult_chk[rep].x_shares[0][party + j], tapes[j].t_shares[0]);
         GF_copy(mult_chk[rep].x_shares[1][party + j], tapes[j].t_shares[1]);
@@ -228,13 +235,17 @@ void run_phase_1(signature_t *sign,
         GF_copy(alpha_v_shares[rep][1][party + j], tapes[j].c_share);
       }
     }
-    // BENCH_FUNCTION(aim2_mpc_N,&mult_chk[rep], (const GF (*)[AIM2_NUM_BITS_FIELD])matrix_A,ct_GF);
+
+    #ifdef bench_AIMER_MPC_N
+          #define BENCH 800
+            BENCH_FUNCTION(aim2_mpc_N,&mult_chk[rep], (const GF (*)[AIM2_NUM_BITS_FIELD])matrix_A,ct_GF);
+    #endif
+    
     aim2_mpc_N(&mult_chk[rep], (const GF (*)[AIM2_NUM_BITS_FIELD])matrix_A,
                ct_GF);
 
     // NOTE: depend on the order of values in proof_t
-    BENCH_FUNCTION(hash_update,&ctx, sign->proofs[rep].delta_pt_bytes,
-                AIM2_NUM_BYTES_FIELD * (AIMER_L + 2));
+    // BENCH_FUNCTION(hash_update,&ctx, sign->proofs[rep].delta_pt_bytes,AIM2_NUM_BYTES_FIELD * (AIMER_L + 2));
     hash_update(&ctx, sign->proofs[rep].delta_pt_bytes,
                 AIM2_NUM_BYTES_FIELD * (AIMER_L + 2));
   }
@@ -342,6 +353,7 @@ int crypto_sign_signature(uint8_t *sig, size_t *siglen,
   GF alpha_v_shares[AIMER_T][2][AIMER_N];
 
   #ifdef benchPhases
+                  #define BENCH 70
                   BENCH_FUNCTION(run_phase_1,sign, commits, (uint8_t (*)[2 * AIMER_N - 1][AIMER_SEED_SIZE])nodes, mult_chk, alpha_v_shares, sk, m, mlen);  
   #endif
 
@@ -356,6 +368,7 @@ int crypto_sign_signature(uint8_t *sig, size_t *siglen,
 
   // compute the commitment of phase 3
   #ifdef benchPhases
+                  #define BENCH 100
                   BENCH_FUNCTION(run_phase_2_and_3,sign, alpha_v_shares, mult_chk);
   #endif            
   run_phase_2_and_3(sign, alpha_v_shares, mult_chk);

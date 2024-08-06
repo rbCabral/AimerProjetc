@@ -570,6 +570,67 @@ void GF_sqr_N_256(GF c[AIMER_N], const GF a[AIMER_N])
   }
 }
 
+
+
+void GF_transposed_matmul2(GF c, const GF a, const GF b[AIM2_NUM_BITS_FIELD])
+{
+  unsigned int i, j;
+  const uint32_t *a_ptr = (uint32_t *)a;
+  const __m256i shift = _mm256_set_epi32(0, 2, 4, 6, 1, 3, 5, 7);
+  __m256i temp[2] = {_mm256_setzero_si256(), _mm256_setzero_si256()};
+  __m256i matrix_data[4];
+
+
+  for (i = 0; i < 4; i++)
+  {
+    __m256i index = _mm256_set1_epi32(a_ptr[i]);
+    print_256(index);
+    for (j = 32 * (i + 1); j > 32 * i; j -= 8)
+    {
+      __m256i mask = _mm256_sllv_epi32(index, shift);
+      printf("id = %d\n",j - 2);
+      matrix_data[0] = _mm256_loadu_si256((const __m256i *)&b[j - 2]);
+      matrix_data[1] = _mm256_loadu_si256((const __m256i *)&b[j - 4]);
+      matrix_data[2] = _mm256_loadu_si256((const __m256i *)&b[j - 6]);
+      matrix_data[3] = _mm256_loadu_si256((const __m256i *)&b[j - 8]);
+
+      print_256(matrix_data[0]);
+      print_256(_mm256_srai_epi32(_mm256_shuffle_epi32(mask, 0xff), 31));
+      print_256(matrix_data[1]);
+      print_256(_mm256_srai_epi32(_mm256_shuffle_epi32(mask, 0xaa), 31));
+      print_256(matrix_data[2]);
+      print_256(_mm256_srai_epi32(_mm256_shuffle_epi32(mask, 0x55), 31));
+      print_256(matrix_data[3]);
+      print_256(_mm256_srai_epi32(_mm256_shuffle_epi32(mask, 0x00), 31));
+      getchar();
+
+      temp[0] = _mm256_xor_si256(temp[0],
+        _mm256_and_si256(matrix_data[0],
+          _mm256_srai_epi32(_mm256_shuffle_epi32(mask, 0xff), 31)));
+      temp[1] = _mm256_xor_si256(temp[1],
+        _mm256_and_si256(matrix_data[1],
+          _mm256_srai_epi32(_mm256_shuffle_epi32(mask, 0xaa), 31)));
+      temp[0] = _mm256_xor_si256(temp[0],
+        _mm256_and_si256(matrix_data[2],
+          _mm256_srai_epi32(_mm256_shuffle_epi32(mask, 0x55), 31)));
+      temp[1] = _mm256_xor_si256(temp[1],
+        _mm256_and_si256(matrix_data[3],
+          _mm256_srai_epi32(_mm256_shuffle_epi32(mask, 0x00), 31)));
+      index = _mm256_slli_epi32(index, 8);
+    }
+  }
+  
+
+  temp[0] = _mm256_xor_si256(temp[0], temp[1]);
+  printf("fim\n");
+  getchar();
+  _mm_storeu_si128((__m128i *)c,
+                  _mm_xor_si128(_mm256_extracti128_si256(temp[0], 0),
+                  _mm256_extracti128_si256(temp[0], 1)));
+  printBytes(c,16);
+  getchar();                  
+}
+
 void GF_transposed_matmul(GF c, const GF a, const GF b[AIM2_NUM_BITS_FIELD])
 {
   unsigned int i, j;
@@ -749,192 +810,176 @@ void GF_transposed_matmul_add_N_A(GF c[AIMER_N], const GF a[AIMER_N],const uint6
   const __m512i one = _mm512_set1_epi64(0x01);
 
   uint8_t stateOut[16];  
-
-  __m512i Al,Ah, Ac1, Ac2,Tmp, Tmp2;
-
-  printBytes(a[0],16);
-  getchar();
-  Tmp = _mm512_loadu_si512((const __m512i *)a[0]);
-  Al =  _mm512_broadcast_i32x2(_mm512_castsi512_si128(Tmp));
-  Ah =  _mm512_broadcast_i32x2(_mm512_castsi512_si128(_mm512_bsrli_epi128(Tmp,8)));
-
-  Tmp2 = _mm512_loadu_si512((const __m512i *)c[0]);
-  // Ac1 =  _mm512_broadcast_i32x2(_mm512_castsi512_si128(Tmp2));
-  // Ac2 =  _mm512_broadcast_i32x2(_mm512_castsi512_si128(_mm512_bsrli_epi128(Tmp2,8)));
-
-  Ac1 = _mm512_setzero_si512();  
-  Ac2 = _mm512_setzero_si512();  
-
-  static const uint64_t low[] = {0x2b0cc1bc01eb02c2,0x6d194b85fb27a0ae,0x196386b662943e86,0x5ef85fc060b12e86,0x475c49680b884385,0x1548942fca2eec43,0x102f4a8ee11e75dc,0x489d6e4b0b24a04e,};
-  // static const uint64_t low[] = {0x4895ef0385bcd921,0x3860e90266a9502f,0x711576b0dfed7ae7,0x51ff003857d428e2,0x6e46d9c6f333e0b3,0x106dd74e62560b55,0x07d37104fb4a5610,0x04e65f7a8967ae0f};
-  static const uint64_t high[] = {0x34ffbd4f2c83547f,0x4d9be1b9a2f1f686,0xd0ff1304e7c9f732,0xe40f547ad424d9db,0xae94f2cf62548309,0x49d3f7540d21657f,0xdcf09401353ac40b,0xb8c84f00d74f3119,};
-  // static const uint64_t high[] = {  0x453b694506ff3ca1,0x693093f942379bbb,0x42068d04c500aef0,0x425b7629ea2abbbb,0x789013058db2b456,0x2a1620c5c5b6d2f3,0x453b694506ff3ca1,0x689b0e3479620675,};
-
-  // static const uint64_t low[] = {0x4895ef0385bcd921,0x3860e90266a9502f,0x711576b0dfed7ae7,0x51ff003857d428e2,0x6e46d9c6f333e0b3,0x106dd74e62560b55,0x07d37104fb4a5610,0x04e65f7a8967ae0f,};
-  // static const uint64_t high[] = {0x83e04f7a11d9ac05,0xd2bf34efc69e1e28,0xa837818ea4252fbb,0xb81bbfbbf7a13020,0xe1e2678005b20ae5,0x6f114d1c96946544,0xfbc48d079f7e5fd3,0xf73591572810d28d,};
   
-    Tmp  = _mm512_loadu_si512((const __m512i *)low);
-    Tmp2 = _mm512_loadu_si512((const __m512i *)high);
-    
-    Ac1  = _mm512_and_epi64(Al,Tmp);
-    Ac2  = _mm512_and_epi64(Ah,Tmp2);
 
-    Tmp = _mm512_xor_epi64(Ac1,Ac2);
-    Tmp = _mm512_popcnt_epi64(Tmp);
-    Tmp = _mm512_and_epi64(Tmp,one);
-    uint8_t o = _mm512_cmp_epi64_mask (Tmp, one, 0x00);
-    printf("out = %.2x\n",o);
-    getchar();
+  __m512i Al,Ah, Aux, Tmp, Tmp2;
+  __m128i aux2;
+  
+  for(int j=0;j<4;j++){
+    Aux = _mm512_loadu_si512((const __m512i *)a[j*4]);
+    //-----------
+    aux2 = _mm512_extracti32x4_epi32(Aux,0);
+    Al =  _mm512_broadcast_i32x2(aux2);
+    Ah =  _mm512_broadcast_i32x2(_mm_bsrli_si128(aux2,8));
+
+    for(int i=15,k=0;i>=0;i--,k++){
+      Tmp  = _mm512_loadu_si512((const __m512i *)bl+i);
+      Tmp2 = _mm512_loadu_si512((const __m512i *)bh+i);
         
-  
+      Tmp = _mm512_xor_epi64(_mm512_and_epi64(Al,Tmp),_mm512_and_epi64(Ah,Tmp2));
+      Tmp = _mm512_popcnt_epi64(Tmp);
+      Tmp = _mm512_and_epi64(Tmp,one);
+          uint8_t o = _mm512_cmp_epi64_mask (Tmp, one, 0x00);
+          stateOut[k] = o;
+    }
+    GF_add(c[j*4],c[j*4],stateOut);
+    //-----------
+    aux2 = _mm512_extracti32x4_epi32(Aux,1);
+    Al =  _mm512_broadcast_i32x2(aux2);
+    Ah =  _mm512_broadcast_i32x2(_mm_bsrli_si128(aux2,8));
 
-  // for(int i=0;i<8;i++){
-  //   Tmp  = _mm512_loadu_si512((const __m512i *)bl+i);
+    for(int i=15,k=0;i>=0;i--,k++){
+      Tmp  = _mm512_loadu_si512((const __m512i *)bl+i);
+      Tmp2 = _mm512_loadu_si512((const __m512i *)bh+i);
+        
+      Tmp = _mm512_xor_epi64(_mm512_and_epi64(Al,Tmp),_mm512_and_epi64(Ah,Tmp2));
+      Tmp = _mm512_popcnt_epi64(Tmp);
+      Tmp = _mm512_and_epi64(Tmp,one);
+          uint8_t o = _mm512_cmp_epi64_mask (Tmp, one, 0x00);
+          stateOut[k] = o;
+    }
+    GF_add(c[j*4+1],c[j*4+1],stateOut);
+    //------------------------------
+    aux2 = _mm512_extracti32x4_epi32(Aux,2);
+    Al =  _mm512_broadcast_i32x2(aux2);
+    Ah =  _mm512_broadcast_i32x2(_mm_bsrli_si128(aux2,8));
+
+    for(int i=15,k=0;i>=0;i--,k++){
+      Tmp  = _mm512_loadu_si512((const __m512i *)bl+i);
+      Tmp2 = _mm512_loadu_si512((const __m512i *)bh+i);
+        
+      Tmp = _mm512_xor_epi64(_mm512_and_epi64(Al,Tmp),_mm512_and_epi64(Ah,Tmp2));
+      Tmp = _mm512_popcnt_epi64(Tmp);
+      Tmp = _mm512_and_epi64(Tmp,one);
+          uint8_t o = _mm512_cmp_epi64_mask (Tmp, one, 0x00);
+          stateOut[k] = o;
+    }
+    GF_add(c[j*4+2],c[j*4+2],stateOut);
+    //-------------------------------
+    aux2 = _mm512_extracti32x4_epi32(Aux,3);
+    Al =  _mm512_broadcast_i32x2(aux2);
+    Ah =  _mm512_broadcast_i32x2(_mm_bsrli_si128(aux2,8));
+
+    for(int i=15,k=0;i>=0;i--,k++){
+      Tmp  = _mm512_loadu_si512((const __m512i *)bl+i);
+      Tmp2 = _mm512_loadu_si512((const __m512i *)bh+i);
+        
+      Tmp = _mm512_xor_epi64(_mm512_and_epi64(Al,Tmp),_mm512_and_epi64(Ah,Tmp2));
+      Tmp = _mm512_popcnt_epi64(Tmp);
+      Tmp = _mm512_and_epi64(Tmp,one);
+          uint8_t o = _mm512_cmp_epi64_mask (Tmp, one, 0x00);
+          stateOut[k] = o;
+    }
+    GF_add(c[j*4+3],c[j*4+3],stateOut);
+    //--------------------
+  }
+
+
+  // for(int i=0;i<16;i++)  
+  //   printBytes(c[i],16);
     
-  //   Tmp2 = _mm512_loadu_si512((const __m512i *)bl+i+8);
+  // getchar();
+
+}
+
+
+void GF_transposed_matmul_add_N_M(GF c[AIMER_N], const GF a[AIMER_N],const GF b[AIM2_NUM_BITS_FIELD])
+{
+  const __m256i zero = _mm256_setzero_si256();
+  __m256i m0, m1, m2, m3, t;
+  const __m512i one = _mm512_set1_epi64(0x01);
+
+  uint8_t stateOut[16];  
+  
+
+  __m512i Al,Ah, Aux, Tmp, Tmp2;
+  __m128i aux2;
+  
+  for(int j=0;j<4;j++){
+    Aux = _mm512_loadu_si512((const __m512i *)a[j*4]);
+    //-----------
+    aux2 = _mm512_extracti32x4_epi32(Aux,0);
+    Al =  _mm512_broadcast_i32x2(aux2);
+    Ah =  _mm512_broadcast_i32x2(_mm_bsrli_si128(aux2,8));
+
+    for(int i=0;i<16;i++){
+      Tmp  = _mm512_loadu_si512((const __m512i *)b[i]);
+      Tmp2 = _mm512_loadu_si512((const __m512i *)b[64+i]);
+        
+      Tmp = _mm512_xor_epi64(_mm512_and_epi64(Al,Tmp),_mm512_and_epi64(Ah,Tmp2));
+      Tmp = _mm512_popcnt_epi64(Tmp);
+      Tmp = _mm512_and_epi64(Tmp,one);
+          uint8_t o = _mm512_cmp_epi64_mask (Tmp, one, 0x00);
+          stateOut[i] = o;
+    }
+    GF_add(c[j*4],c[j*4],stateOut);
+    //-----------
+    aux2 = _mm512_extracti32x4_epi32(Aux,1);
+    Al =  _mm512_broadcast_i32x2(aux2);
+    Ah =  _mm512_broadcast_i32x2(_mm_bsrli_si128(aux2,8));
+
+    for(int i=0;i<16;i++){
+      Tmp  = _mm512_loadu_si512((const __m512i *)b[i]);
+      Tmp2 = _mm512_loadu_si512((const __m512i *)b[64+i]);
+        
+      Tmp = _mm512_xor_epi64(_mm512_and_epi64(Al,Tmp),_mm512_and_epi64(Ah,Tmp2));
+      Tmp = _mm512_popcnt_epi64(Tmp);
+      Tmp = _mm512_and_epi64(Tmp,one);
+          uint8_t o = _mm512_cmp_epi64_mask (Tmp, one, 0x00);
+          stateOut[i] = o;
+    }
+    GF_add(c[j*4+1],c[j*4+1],stateOut);
+    //------------------------------
+    aux2 = _mm512_extracti32x4_epi32(Aux,2);
+    Al =  _mm512_broadcast_i32x2(aux2);
+    Ah =  _mm512_broadcast_i32x2(_mm_bsrli_si128(aux2,8));
+
+    for(int i=0;i<16;i++){
+      Tmp  = _mm512_loadu_si512((const __m512i *)b[i]);
+      Tmp2 = _mm512_loadu_si512((const __m512i *)b[64+i]);
+        
+      Tmp = _mm512_xor_epi64(_mm512_and_epi64(Al,Tmp),_mm512_and_epi64(Ah,Tmp2));
+      Tmp = _mm512_popcnt_epi64(Tmp);
+      Tmp = _mm512_and_epi64(Tmp,one);
+          uint8_t o = _mm512_cmp_epi64_mask (Tmp, one, 0x00);
+          stateOut[i] = o;
+    }
+    GF_add(c[j*4+2],c[j*4+2],stateOut);
+    //-------------------------------
+    aux2 = _mm512_extracti32x4_epi32(Aux,3);
+    Al =  _mm512_broadcast_i32x2(aux2);
+    Ah =  _mm512_broadcast_i32x2(_mm_bsrli_si128(aux2,8));
+
+    for(int i=0;i<16;i++){
+      Tmp  = _mm512_loadu_si512((const __m512i *)b[i]);
+      Tmp2 = _mm512_loadu_si512((const __m512i *)b[64+i]);
+        
+      Tmp = _mm512_xor_epi64(_mm512_and_epi64(Al,Tmp),_mm512_and_epi64(Ah,Tmp2));
+      Tmp = _mm512_popcnt_epi64(Tmp);
+      Tmp = _mm512_and_epi64(Tmp,one);
+          uint8_t o = _mm512_cmp_epi64_mask (Tmp, one, 0x00);
+          stateOut[i] = o;
+    }
+    GF_add(c[j*4+3],c[j*4+3],stateOut);
+    //--------------------
+  }
+
+
+  // for(int i=0;i<16;i++)  
+  //   printBytes(c[i],16);
     
-  //   Ac1  = _mm512_xor_epi64(_mm512_and_epi64(Ah,Tmp),Ac1);
-  //   Ac2  = _mm512_xor_epi64(_mm512_and_epi64(Al,Tmp2),Ac2);
-  //   // getchar();
-  //   Tmp = _mm512_xor_epi64(Ac1,Ac2);
-  //   Tmp = _mm512_popcnt_epi64(Tmp);
-  //   Tmp = _mm512_and_epi64(Tmp,one);
-  //       uint8_t o = _mm512_cmp_epi64_mask (Tmp, one, 0x00);
-  //       stateOut[i] = o;
-  // }
-  printBytes(stateOut,16);
+  // getchar();
 
-  
-  getchar();
-
-
-	
-
-  
-
-  // for (size_t party = 0; party < AIMER_N; party += 4)
-  // {
-  //   const __m256i shift = _mm256_set_epi64x(0, 0, 1, 1);
-  //   __m256i a0, a1, a2, a3, c0, c1, c2, c3;
-
-  //   m0 = _mm256_loadu_si256((const __m256i *)a[party]);
-  //   m1 = _mm256_loadu_si256((const __m256i *)a[party + 2]);
-  //   m2 = _mm256_loadu_si256((const __m256i *)c[party]);
-  //   m3 = _mm256_loadu_si256((const __m256i *)c[party + 2]);
-
-  //   // printf("party=%d\n",party);
-  //   // print_256(m0);
-  //   // print_256(m1);
-  //   // // getchar();
-
-  //   // ai = a[party + i].hi x4
-  //   a0 = _mm256_permute4x64_epi64(m0, 0x55);
-  //   a1 = _mm256_permute4x64_epi64(m0, 0xff);
-  //   a2 = _mm256_permute4x64_epi64(m1, 0x55);
-  //   a3 = _mm256_permute4x64_epi64(m1, 0xff);
-
-  //   // print_256(a0);
-  //   // print_256(a1);
-  //   // print_256(a2);
-  //   // print_256(a3);
-  //   // // getchar();
-
-  //   a0 = _mm256_sllv_epi64(a0, shift);
-  //   a1 = _mm256_sllv_epi64(a1, shift);
-  //   a2 = _mm256_sllv_epi64(a2, shift);
-  //   a3 = _mm256_sllv_epi64(a3, shift);
-
-  //   // print_256(a0);
-  //   // print_256(a1);
-  //   // print_256(a2);
-  //   // print_256(a3);
-  //   // getchar();
-
-  //   // ci = [c[party + i].lo | c[party + i].hi | 0 | 0]
-  //   c0 = _mm256_permute2x128_si256(m2, m2, 0x80);
-  //   c1 = _mm256_permute2x128_si256(m2, m2, 0x81);
-  //   c2 = _mm256_permute2x128_si256(m3, m3, 0x80);
-  //   c3 = _mm256_permute2x128_si256(m3, m3, 0x81);
-
-  //   for (size_t row = 128; row > 64; row -= 2)
-  //   {
-  //     t = _mm256_loadu_si256((const __m256i *)b[row - 2]);
-
-  //     // mi[w] = (ai[w].msb) ^ 64
-  //     m0 = _mm256_cmpgt_epi64(zero, a0);
-  //     m1 = _mm256_cmpgt_epi64(zero, a1);
-  //     m2 = _mm256_cmpgt_epi64(zero, a2);
-  //     m3 = _mm256_cmpgt_epi64(zero, a3);
-
-  //     a0 = _mm256_slli_epi64(a0, 2);
-  //     a1 = _mm256_slli_epi64(a1, 2);
-  //     a2 = _mm256_slli_epi64(a2, 2);
-  //     a3 = _mm256_slli_epi64(a3, 2);
-
-  //     m0 = _mm256_and_si256(m0, t);
-  //     m1 = _mm256_and_si256(m1, t);
-  //     m2 = _mm256_and_si256(m2, t);
-  //     m3 = _mm256_and_si256(m3, t);
-
-  //     c0 = _mm256_xor_si256(c0, m0);
-  //     c1 = _mm256_xor_si256(c1, m1);
-  //     c2 = _mm256_xor_si256(c2, m2);
-  //     c3 = _mm256_xor_si256(c3, m3);
-  //   }
-
-  //   m0 = _mm256_loadu_si256((const __m256i *)a[party]);
-  //   m1 = _mm256_loadu_si256((const __m256i *)a[party + 2]);
-
-  //   // ai = a[party + i].lo x4
-  //   a0 = _mm256_permute4x64_epi64(m0, 0x00);
-  //   a1 = _mm256_permute4x64_epi64(m0, 0xaa);
-  //   a2 = _mm256_permute4x64_epi64(m1, 0x00);
-  //   a3 = _mm256_permute4x64_epi64(m1, 0xaa);
-
-  //   a0 = _mm256_sllv_epi64(a0, shift);
-  //   a1 = _mm256_sllv_epi64(a1, shift);
-  //   a2 = _mm256_sllv_epi64(a2, shift);
-  //   a3 = _mm256_sllv_epi64(a3, shift);
-
-  //   for (size_t row = 64; row > 0; row -= 2)
-  //   {
-  //     t = _mm256_loadu_si256((const __m256i *)b[row - 2]);
-
-  //     // mi[w] = (ai[w].msb) ^ 64
-  //     m0 = _mm256_cmpgt_epi64(zero, a0);
-  //     m1 = _mm256_cmpgt_epi64(zero, a1);
-  //     m2 = _mm256_cmpgt_epi64(zero, a2);
-  //     m3 = _mm256_cmpgt_epi64(zero, a3);
-
-  //     a0 = _mm256_slli_epi64(a0, 2);
-  //     a1 = _mm256_slli_epi64(a1, 2);
-  //     a2 = _mm256_slli_epi64(a2, 2);
-  //     a3 = _mm256_slli_epi64(a3, 2);
-
-  //     m0 = _mm256_and_si256(m0, t);
-  //     m1 = _mm256_and_si256(m1, t);
-  //     m2 = _mm256_and_si256(m2, t);
-  //     m3 = _mm256_and_si256(m3, t);
-
-  //     c0 = _mm256_xor_si256(c0, m0);
-  //     c1 = _mm256_xor_si256(c1, m1);
-  //     c2 = _mm256_xor_si256(c2, m2);
-  //     c3 = _mm256_xor_si256(c3, m3);
-  //   }
-
-  //   a0 = _mm256_permute2x128_si256(c0, c1, 0x20);
-  //   a1 = _mm256_permute2x128_si256(c0, c1, 0x31);
-  //   a2 = _mm256_permute2x128_si256(c2, c3, 0x20);
-  //   a3 = _mm256_permute2x128_si256(c2, c3, 0x31);
-
-  //   c0 = _mm256_xor_si256(a0, a1);
-  //   c2 = _mm256_xor_si256(a2, a3);
-
-  //   _mm256_storeu_si256((__m256i *)c[party], c0);
-  //   _mm256_storeu_si256((__m256i *)c[party + 2], c2);
-  // }
-  // // printBytes(c[0],16);
-  // // getchar();
 }
 
 void GF_transposed_matmul_add_N(GF c[AIMER_N], const GF a[AIMER_N],
@@ -957,10 +1002,10 @@ void GF_transposed_matmul_add_N(GF c[AIMER_N], const GF a[AIMER_N],
 
     m0 = _mm256_loadu_si256((const __m256i *)a[party]);
     m1 = _mm256_loadu_si256((const __m256i *)a[party + 2]);
-    m2 = _mm256_setzero_si256();
-    m3 = _mm256_setzero_si256();
-    // m2 = _mm256_loadu_si256((const __m256i *)c[party]);
-    // m3 = _mm256_loadu_si256((const __m256i *)c[party + 2]);
+    // m2 = _mm256_setzero_si256();
+    // m3 = _mm256_setzero_si256();
+    m2 = _mm256_loadu_si256((const __m256i *)c[party]);
+    m3 = _mm256_loadu_si256((const __m256i *)c[party + 2]);
 
     // printf("party=%d\n",party);
     // print_256(m0);
@@ -1094,8 +1139,8 @@ void GF_transposed_matmul_add_N(GF c[AIMER_N], const GF a[AIMER_N],
 
     c0 = _mm256_xor_si256(a0, a1);
     c2 = _mm256_xor_si256(a2, a3);
-    print_256(c0);
-    getchar();
+    // print_256(c0);
+    // getchar();
 
     _mm256_storeu_si256((__m256i *)c[party], c0);
     _mm256_storeu_si256((__m256i *)c[party + 2], c2);

@@ -107,18 +107,8 @@ void hash_init_prefix_x4(hash_instance_x4 *ctx, uint8_t prefix)
   hash_update_x4_1(ctx, &prefix, sizeof(prefix));
 }
 
-static void printBytes(const uint8_t* in, int len){
-    int i;
-    for(i=0;i<len;i++){
-        printf("%.2X", in[i]);
-    }
-    printf("\n");
-}
-
 void hash_final_x4(hash_instance_x4 *ctx)
 {
-  // printBytes(ctx->states,800);
-  // getchar();
   for (size_t index = 0; index < 4; index++)
   {
     KeccakP1600times4_AddByte(&ctx->states, index, 0x1F, ctx->byte_io_index);
@@ -128,11 +118,8 @@ void hash_final_x4(hash_instance_x4 *ctx)
   {
     KeccakP1600times4_AddByte(&ctx->states, index, 0x80, SHAKE128_RATE - 1);
   }
-  // printBytes(ctx->states,800);
-  //       getchar();
+
   KeccakP1600times4_PermuteAll_24rounds(&ctx->states);
-  // printBytes(ctx->states,800);
-  //       getchar();
   ctx->byte_io_index = 0;
 }
 

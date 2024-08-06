@@ -10,6 +10,17 @@
 static void printBytes(const uint8_t* in, int len){
     int i;
     for(i=0;i<len;i++){
+        // printf("%.2X", (in[i] << 4 ^in[i]>>4) & 0xFF);
+        printf("%.2X", in[i]);
+    }
+    printf("\n");
+}
+
+
+static void printBytes2(const uint8_t* in, int len){
+    int i;
+    for(i=len-1;i>=0;i--){
+        // printf("%.2X", (in[i] << 4 ^in[i]>>4) & 0xFF);
         printf("%.2X", in[i]);
     }
     printf("\n");
@@ -362,6 +373,7 @@ void generate_matrices_L_and_U(
 
   for (size_t num = 0; num < AIM2_NUM_INPUT_SBOX; num++)
   {
+    // printf("num = %d\n",num);
     for (size_t row = 0; row < AIM2_NUM_BITS_FIELD; row++)
     {
       hash_squeeze(&ctx, buf, AIM2_NUM_BYTES_FIELD);
@@ -393,12 +405,141 @@ void generate_matrices_L_and_U(
   hash_squeeze(&ctx, (uint8_t *)vector_b, AIM2_NUM_BYTES_FIELD);
 }
 
+
+
+
+void generate_matrices_L_and_U2(
+        GF matrix_L[AIM2_NUM_INPUT_SBOX][AIM2_NUM_BITS_FIELD],
+        GF matrix_U[AIM2_NUM_INPUT_SBOX][AIM2_NUM_BITS_FIELD],
+        GF vector_b,
+        const uint8_t iv[AIM2_IV_SIZE])
+{
+  uint8_t buf[AIM2_NUM_BYTES_FIELD];
+  uint64_t ormask, lmask, umask;
+  hash_instance ctx;
+  GF temp = {0,};
+
+  // initialize hash
+  hash_init(&ctx);
+  hash_update(&ctx, iv, AIM2_IV_SIZE);
+  hash_final(&ctx);
+
+  for (size_t num = 0; num < AIM2_NUM_INPUT_SBOX; num++)
+  {
+    // printf("num = %d\n",num);
+    for (size_t row = 0; row < AIM2_NUM_BITS_FIELD; row++)
+    {
+      hash_squeeze(&ctx, buf, AIM2_NUM_BYTES_FIELD);
+      GF_from_bytes(temp, buf);
+
+      ormask = ((uint64_t)1) << (row % 64);
+      lmask = ((uint64_t)-1) << (row % 64);
+      umask = ~lmask;
+
+      size_t inter = row / 64;
+      size_t col_word;
+      for (col_word = 0; col_word < inter; col_word++)
+      {
+        // L is zero, U is full
+        matrix_L[num][row][col_word] = 0;
+        // matrix_U[num][row][col_word] = temp[col_word];
+      }
+      
+      matrix_L[num][row][inter] = (temp[inter] & lmask) | ormask;
+      // matrix_U[num][row][inter] = (temp[inter] & umask) | ormask;
+      for (col_word = inter + 1; col_word < AIM2_NUM_WORDS_FIELD; col_word++)
+      {
+        // L is full, U is zero
+        matrix_L[num][row][col_word] = temp[col_word];
+        // matrix_U[num][row][col_word] = 0;
+      }
+    }
+  }
+
+
+  for (size_t num = 0; num < AIM2_NUM_INPUT_SBOX; num++)
+  {
+    // printf("num = %d\n",num);
+    for (size_t row = 0; row < AIM2_NUM_BITS_FIELD; row++)
+    {
+      hash_squeeze(&ctx, buf, AIM2_NUM_BYTES_FIELD);
+      GF_from_bytes(temp, buf);
+
+      ormask = ((uint64_t)1) << (row % 64);
+      lmask = ((uint64_t)-1) << (row % 64);
+      umask = ~lmask;
+
+      size_t inter = row / 64;
+      size_t col_word;
+      for (col_word = 0; col_word < inter; col_word++)
+      {
+        // L is zero, U is full
+        matrix_U[num][row][col_word] = 0;
+        // matrix_U[num][row][col_word] = temp[col_word];
+      }
+      
+      matrix_U[num][row][inter] = (temp[inter] & lmask) | ormask;
+      // matrix_U[num][row][inter] = (temp[inter] & umask) | ormask;
+      for (col_word = inter + 1; col_word < AIM2_NUM_WORDS_FIELD; col_word++)
+      {
+        // L is full, U is zero
+        matrix_U[num][row][col_word] = temp[col_word];
+        // matrix_U[num][row][col_word] = 0;
+      }
+    }
+  }
+
+  hash_squeeze(&ctx, (uint8_t *)vector_b, AIM2_NUM_BYTES_FIELD);
+}
+
+
+
+
+
+
+
+
+inline __m256i transpose8_256(__m256i x){
+  const __m256i C1 =  _mm256_set1_epi64x(0xAA55AA55AA55AA55);
+const __m256i C2 =  _mm256_set1_epi64x(0x00AA00AA00AA00AA);
+const __m256i C3 =  _mm256_set1_epi64x(0xCCCC3333CCCC3333);
+const __m256i C4 =  _mm256_set1_epi64x(0x0000CCCC0000CCCC);
+const __m256i C5 =  _mm256_set1_epi64x(0xF0F0F0F00F0F0F0F);
+const __m256i C6 =  _mm256_set1_epi64x(0x00000000F0F0F0F0);
+    x = _mm256_xor_si256(_mm256_xor_si256(_mm256_and_si256(x,C1),_mm256_slli_epi64(_mm256_and_si256(x,C2),7)),_mm256_and_si256(_mm256_srli_epi64(x,7),C2));
+    x = _mm256_xor_si256(_mm256_xor_si256(_mm256_and_si256(x,C3),_mm256_slli_epi64(_mm256_and_si256(x,C4),14)),_mm256_and_si256(_mm256_srli_epi64(x,14),C4));
+    x = _mm256_xor_si256(_mm256_xor_si256(_mm256_and_si256(x,C5),_mm256_slli_epi64(_mm256_and_si256(x,C6),28)),_mm256_and_si256(_mm256_srli_epi64(x,28),C6));
+    return x;
+}
+
+
+inline __m512i transpose8_512(__m512i x){
+  const __m512i C1 =  _mm512_set1_epi64(0xAA55AA55AA55AA55);
+  const __m512i C2 =  _mm512_set1_epi64(0x00AA00AA00AA00AA);
+  const __m512i C3 =  _mm512_set1_epi64(0xCCCC3333CCCC3333);
+  const __m512i C4 =  _mm512_set1_epi64(0x0000CCCC0000CCCC);
+  const __m512i C5 =  _mm512_set1_epi64(0xF0F0F0F00F0F0F0F);
+  const __m512i C6 =  _mm512_set1_epi64(0x00000000F0F0F0F0);
+    x = _mm512_xor_si512(_mm512_xor_si512(_mm512_and_si512(x,C1),_mm512_slli_epi64(_mm512_and_si512(x,C2),7)) ,_mm512_and_si512(_mm512_srli_epi64(x,7),C2));
+    x = _mm512_xor_si512(_mm512_xor_si512(_mm512_and_si512(x,C3),_mm512_slli_epi64(_mm512_and_si512(x,C4),14)),_mm512_and_si512(_mm512_srli_epi64(x,14),C4));
+    x = _mm512_xor_si512(_mm512_xor_si512(_mm512_and_si512(x,C5),_mm512_slli_epi64(_mm512_and_si512(x,C6),28)),_mm512_and_si512(_mm512_srli_epi64(x,28),C6));
+    return x;
+}
+
+// void print_256(__m256i x){
+//     uint64_t c[4];
+//     _mm256_storeu_si256((__m256i*)c+0,x);
+//     printf("%8.16lx %8.16lx %8.16lx %8.16lx\n", c[3],c[2],c[1],c[0]);
+// }
+
+
 void generate_matrix_LU(GF matrix_A[AIM2_NUM_INPUT_SBOX][AIM2_NUM_BITS_FIELD],
                         GF vector_b,
                         const uint8_t iv[AIM2_IV_SIZE])
 {
   GF matrix_L[AIM2_NUM_INPUT_SBOX][AIM2_NUM_BITS_FIELD];
   GF matrix_U[AIM2_NUM_INPUT_SBOX][AIM2_NUM_BITS_FIELD];
+
 
   generate_matrices_L_and_U(matrix_L, matrix_U, vector_b, iv);
 
@@ -408,10 +549,189 @@ void generate_matrix_LU(GF matrix_A[AIM2_NUM_INPUT_SBOX][AIM2_NUM_BITS_FIELD],
     {
       GF_transposed_matmul(matrix_A[num][i], matrix_U[num][i],
                            (const GF *)matrix_L[num]);
-      // printBytes(matrix_A[num][i],16);
-      // getchar();
     }
   }
+  
+}
+
+void generate_matrix_LU2(GF matrix_A[AIM2_NUM_INPUT_SBOX][AIM2_NUM_BITS_FIELD],
+                        GF vector_b,
+                        const uint8_t iv[AIM2_IV_SIZE])
+{
+  GF matrix_L[AIM2_NUM_INPUT_SBOX][AIM2_NUM_BITS_FIELD];
+  GF matrix_U[AIM2_NUM_INPUT_SBOX][AIM2_NUM_BITS_FIELD];
+  uint64_t matrix_U_l0[128],matrix_U_l1[128];
+  uint64_t matrix_U_h0[128],matrix_U_h1[128];
+
+
+  generate_matrices_L_and_U2(matrix_L, matrix_U, vector_b, iv);
+
+
+  // printf("Matriz L\n");
+  // for (size_t num = 0; num < 128; num++){
+  //   printBytes2(matrix_L[1][num],16);
+  // }
+  // printf("Matriz U\n");
+  // for (size_t num = 0; num < 128; num++){
+  //   printBytes2(matrix_U[1][num],16);
+  // }
+  // getchar();
+
+  int k=0;
+  /*posso mudar na geração para já ficar nessa organização*/
+    for(int i=0;i<16;i++){
+      for(int j=i*8+7;j>=i*8;j--){
+        matrix_U_l0[j]   = matrix_U[0][k][0];
+        matrix_U_h0[j]   = matrix_U[0][k][1];
+        matrix_U_l1[j]   = matrix_U[1][k][0];
+        matrix_U_h1[j]   = matrix_U[1][k][1];
+        k++;
+      }
+    }
+
+  const __m256i zero = _mm256_setzero_si256();
+  __m256i m0, m1, m2, m3, t;
+  const __m512i one = _mm512_set1_epi64(0x01);
+
+  uint8_t stateOut0[16];  
+  uint8_t stateOut1[16];  
+  uint8_t o;
+
+  
+    for(int j=0,id=0;j<128;j+=2,id++){
+      
+      __m512i Al0,Al1,Ah0,Ah1,Tmp, Tmp2, aux;
+
+      Tmp = _mm512_loadu_si512((const __m512i *)matrix_L[0][j]);
+      
+      Al0 =  _mm512_broadcast_i32x2(_mm512_castsi512_si128(Tmp));
+      Ah0 =  _mm512_broadcast_i32x2(_mm512_castsi512_si128(_mm512_bsrli_epi128(Tmp,8)));
+      
+      Tmp = _mm512_loadu_si512((const __m512i *)matrix_L[0][j+1]);
+      Al1 =  _mm512_broadcast_i32x2(_mm512_castsi512_si128(Tmp));
+      Ah1 =  _mm512_broadcast_i32x2(_mm512_castsi512_si128(_mm512_bsrli_epi128(Tmp,8)));
+      
+      for(int i=0;i<8;i++){
+        Tmp  = _mm512_loadu_si512((const __m512i *)matrix_U_l0+i);
+        Tmp2 = _mm512_loadu_si512((const __m512i *)matrix_U_h0+i);
+
+        aux = _mm512_xor_epi64(_mm512_and_epi64(Al0,Tmp),_mm512_and_epi64(Ah0,Tmp2));
+        aux = _mm512_popcnt_epi64(aux);
+        aux = _mm512_and_epi64(aux,one);
+        o = _mm512_cmp_epi64_mask (aux, one, 0x00);
+        stateOut0[i] = o;
+
+        aux = _mm512_xor_epi64(_mm512_and_epi64(Al1,Tmp),_mm512_and_epi64(Ah1,Tmp2));
+        aux = _mm512_popcnt_epi64(aux);
+        aux = _mm512_and_epi64(aux,one);
+        o = _mm512_cmp_epi64_mask (aux, one, 0x00);
+        stateOut0[i+8] = o;
+      }
+      
+      for(int i=8,k1=0;i<16;i++,k1++){
+        Tmp  = _mm512_loadu_si512((const __m512i *)matrix_U_l0+i);
+        Tmp2 = _mm512_loadu_si512((const __m512i *)matrix_U_h0+i);
+
+        aux = _mm512_xor_epi64(_mm512_and_epi64(Al0,Tmp),_mm512_and_epi64(Ah0,Tmp2));
+        aux = _mm512_popcnt_epi64(aux);
+        aux = _mm512_and_epi64(aux,one);
+        o = _mm512_cmp_epi64_mask (aux, one, 0x00);
+        stateOut1[k1] = o;
+
+        aux = _mm512_xor_epi64(_mm512_and_epi64(Al1,Tmp),_mm512_and_epi64(Ah1,Tmp2));
+        aux = _mm512_popcnt_epi64(aux);
+        aux = _mm512_and_epi64(aux,one);
+        o = _mm512_cmp_epi64_mask (aux, one, 0x00);
+        stateOut1[k1+8] = o;
+      }
+      GF_from_bytes(matrix_A[0][id], stateOut0);
+      GF_from_bytes(matrix_A[0][id+64], stateOut1);
+    }
+    
+    for(int j=0,id=0;j<128;j+=2,id++){
+      
+      __m512i Al0,Al1,Ah0,Ah1,Tmp, Tmp2, aux;
+
+      Tmp = _mm512_loadu_si512((const __m512i *)matrix_L[1][j]);
+      
+      Al0 =  _mm512_broadcast_i32x2(_mm512_castsi512_si128(Tmp));
+      Ah0 =  _mm512_broadcast_i32x2(_mm512_castsi512_si128(_mm512_bsrli_epi128(Tmp,8)));
+      
+      Tmp = _mm512_loadu_si512((const __m512i *)matrix_L[1][j+1]);
+      Al1 =  _mm512_broadcast_i32x2(_mm512_castsi512_si128(Tmp));
+      Ah1 =  _mm512_broadcast_i32x2(_mm512_castsi512_si128(_mm512_bsrli_epi128(Tmp,8)));
+      
+      for(int i=0;i<8;i++){
+        Tmp  = _mm512_loadu_si512((const __m512i *)matrix_U_l1+i);
+        Tmp2 = _mm512_loadu_si512((const __m512i *)matrix_U_h1+i);
+
+        aux = _mm512_xor_epi64(_mm512_and_epi64(Al0,Tmp),_mm512_and_epi64(Ah0,Tmp2));
+        aux = _mm512_popcnt_epi64(aux);
+        aux = _mm512_and_epi64(aux,one);
+        o = _mm512_cmp_epi64_mask (aux, one, 0x00);
+        stateOut0[i] = o;
+
+        aux = _mm512_xor_epi64(_mm512_and_epi64(Al1,Tmp),_mm512_and_epi64(Ah1,Tmp2));
+        aux = _mm512_popcnt_epi64(aux);
+        aux = _mm512_and_epi64(aux,one);
+        o = _mm512_cmp_epi64_mask (aux, one, 0x00);
+        stateOut0[i+8] = o;
+      }
+      
+      for(int i=8,k1=0;i<16;i++,k1++){
+        Tmp  = _mm512_loadu_si512((const __m512i *)matrix_U_l1+i);
+        Tmp2 = _mm512_loadu_si512((const __m512i *)matrix_U_h1+i);
+
+        aux = _mm512_xor_epi64(_mm512_and_epi64(Al0,Tmp),_mm512_and_epi64(Ah0,Tmp2));
+        aux = _mm512_popcnt_epi64(aux);
+        aux = _mm512_and_epi64(aux,one);
+        o = _mm512_cmp_epi64_mask (aux, one, 0x00);
+        stateOut1[k1] = o;
+
+        aux = _mm512_xor_epi64(_mm512_and_epi64(Al1,Tmp),_mm512_and_epi64(Ah1,Tmp2));
+        aux = _mm512_popcnt_epi64(aux);
+        aux = _mm512_and_epi64(aux,one);
+        o = _mm512_cmp_epi64_mask (aux, one, 0x00);
+        stateOut1[k1+8] = o;
+      }
+      GF_from_bytes(matrix_A[1][id], stateOut0);
+      GF_from_bytes(matrix_A[1][id+64], stateOut1);
+    }
+
+    // for(int j=0;j<128;j++)
+    //   printBytes(matrix_A[0][j],16);
+
+    // getchar();
+    // for(int j=0;j<128;j++)
+    //   printBytes(matrix_A[1][j],16);
+
+    // // printBytes(stateOut1,1024);
+    // getchar();
+
+    
+
+
+  // for (size_t num = 0; num < AIM2_NUM_INPUT_SBOX; num++)
+  // {
+  //   for (size_t i = 0; i < AIM2_NUM_BITS_FIELD; i++)
+  //   {
+  //     printBytes(matrix_U[num][i],16);
+  //     printBytes(matrix_L[num],16);
+  //     GF_transposed_matmul2(matrix_A[num][i], matrix_U[num][i],
+  //                          (const GF *)matrix_L[num]);
+
+      
+
+  //     // printBytes(matrix_U[num][0],16);
+  //     // printBytes(matrix_L[num][0],16);
+  //     // getchar();
+
+  //   }
+  // }
+  // for (size_t num = 0; num < 128; num++){
+  //   printBytes(matrix_A[0][num],16);
+  // }
+  // getchar();
 }
 
 void aim2(uint8_t ct[AIM2_NUM_BYTES_FIELD],

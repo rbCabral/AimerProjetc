@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT
 
 CC = gcc
-CFLAGS += -I. -O3 -Wall -Wextra -march=native -fomit-frame-pointer
+CFLAGS += -I. -O3 -Wall -Wextra -march=native -fomit-frame-pointer -g
 NISTFLAGS = -Wno-sign-compare -Wno-unused-but-set-variable -Wno-unused-parameter -Wno-unused-result
 AVX2FLAGS = -march=native -mavx2 -mpclmul
 

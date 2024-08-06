@@ -6,12 +6,6 @@
 #include <stdlib.h>
 #include "../api.h"
 #include "../common/rng.h"
-#include "../bench.h"
-
-
-#define BENCH 70
-
-
 
 #define MLEN 59
 #define NTESTS 5
@@ -34,7 +28,6 @@ int main(void)
     randombytes(m, MLEN);
 
     crypto_sign_keypair(pk, sk);
-    BENCH_FUNCTION(crypto_sign,sm, &smlen, m, MLEN, sk);
     crypto_sign(sm, &smlen, m, MLEN, sk);
 
     ret = crypto_sign_open(m2, &mlen, sm, smlen, pk);
