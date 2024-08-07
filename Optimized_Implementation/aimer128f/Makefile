@@ -20,8 +20,11 @@ BENCH = bench/bench.o bench/bench_aim2.o bench/bench_field.o
 
 all: $(EXECUTABLE_TESTAIM2) $(EXECUTABLE_TESTSIGN) $(EXECUTABLE_TESTSPEED) $(EXECUTABLE_KAT) $(EXECUTABLE_MICROBENCH)
 
+dev: $(EXECUTABLE_DEVEL)
+
 .c.o:
 	$(CC) -c $(CFLAGS) $(AVX2FLAGS) $< -o $@
+$(EXECUTABLE_DEVEL): $(EXECUTABLE_DEVEL).o aim2.o field.o hash.o common/keccak_avx2/fips202.o common/keccak_avx2/KeccakP-1600-AVX2.s common/keccak4x/KeccakP-1600-times4-SIMD256.o
 
 $(EXECUTABLE_TESTAIM2): $(EXECUTABLE_TESTAIM2).o $(AIMER) $(SHA3) $(RNG)
 	$(CC) $(CFLAGS) $(AVX2FLAGS) $^ -o $@
