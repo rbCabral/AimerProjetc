@@ -7,6 +7,19 @@
 
 #include <stdio.h>
 
+inline __m512i transpose8_512(__m512i x){
+  const __m512i C1N =  _mm512_set1_epi64(0xAA55AA55AA55AA55);
+  const __m512i C2N =  _mm512_set1_epi64(0x00AA00AA00AA00AA);
+  const __m512i C3N =  _mm512_set1_epi64(0xCCCC3333CCCC3333);
+  const __m512i C4N =  _mm512_set1_epi64(0x0000CCCC0000CCCC);
+  const __m512i C5N =  _mm512_set1_epi64(0xF0F0F0F00F0F0F0F);
+  const __m512i C6N =  _mm512_set1_epi64(0x00000000F0F0F0F0);
+    x = _mm512_xor_si512(_mm512_xor_si512(_mm512_and_si512(x,C1N),_mm512_slli_epi64(_mm512_and_si512(x,C2N),7)) ,_mm512_and_si512(_mm512_srli_epi64(x,7) ,C2N));
+    x = _mm512_xor_si512(_mm512_xor_si512(_mm512_and_si512(x,C3N),_mm512_slli_epi64(_mm512_and_si512(x,C4N),14)),_mm512_and_si512(_mm512_srli_epi64(x,14),C4N));
+    x = _mm512_xor_si512(_mm512_xor_si512(_mm512_and_si512(x,C5N),_mm512_slli_epi64(_mm512_and_si512(x,C6N),28)),_mm512_and_si512(_mm512_srli_epi64(x,28),C6N));
+    return x;
+  }
+
 void print_512(__m512i x){
     uint64_t c[8];
     _mm512_storeu_si512((__m512i*)c+0,x);
@@ -674,46 +687,78 @@ void GF_transposed_matmul(GF c, const GF a, const GF b[AIM2_NUM_BITS_FIELD])
                   _mm256_extracti128_si256(temp[0], 1)));
 }
 
-void GF_transposed_matmul_2(GF c, const GF a, const GF b[AIM2_NUM_BITS_FIELD])
+void GF_transposed_matmul_2(GF c[AIM2_NUM_BITS_FIELD], const GF a[AIM2_NUM_BITS_FIELD], const GF b[AIM2_NUM_BITS_FIELD])
 {
-  unsigned int i, j;
-  const uint32_t *a_ptr = (uint32_t *)a;
-  const __m256i shift = _mm256_set_epi32(0, 2, 4, 6, 1, 3, 5, 7);
-  __m256i temp[2] = {_mm256_setzero_si256(), _mm256_setzero_si256()};
-  __m256i matrix_data[4];
-
-  for (i = 0; i < 4; i++)
-  {
-    __m256i index = _mm256_set1_epi32(a_ptr[i]);
-    for (j = 32 * (i + 1); j > 32 * i; j -= 8)
-    {
-      __m256i mask = _mm256_sllv_epi32(index, shift);
-      matrix_data[0] = _mm256_loadu_si256((const __m256i *)&b[j - 2]);
-      matrix_data[1] = _mm256_loadu_si256((const __m256i *)&b[j - 4]);
-      matrix_data[2] = _mm256_loadu_si256((const __m256i *)&b[j - 6]);
-      matrix_data[3] = _mm256_loadu_si256((const __m256i *)&b[j - 8]);
-
-      temp[0] = _mm256_xor_si256(temp[0],
-        _mm256_and_si256(matrix_data[0],
-          _mm256_srai_epi32(_mm256_shuffle_epi32(mask, 0xff), 31)));
-      temp[1] = _mm256_xor_si256(temp[1],
-        _mm256_and_si256(matrix_data[1],
-          _mm256_srai_epi32(_mm256_shuffle_epi32(mask, 0xaa), 31)));
-      temp[0] = _mm256_xor_si256(temp[0],
-        _mm256_and_si256(matrix_data[2],
-          _mm256_srai_epi32(_mm256_shuffle_epi32(mask, 0x55), 31)));
-      temp[1] = _mm256_xor_si256(temp[1],
-        _mm256_and_si256(matrix_data[3],
-          _mm256_srai_epi32(_mm256_shuffle_epi32(mask, 0x00), 31)));
-      index = _mm256_slli_epi32(index, 8);
+  uint64_t matrix_U_l[128];
+  uint64_t matrix_U_h[128];
+  int k=0;
+  /*posso mudar na geração para já ficar nessa organização*/
+    for(int i=0;i<16;i++){
+      for(int j=i*8;j<i*8+8;j++){
+        matrix_U_l[j]   = a[k][0];
+        matrix_U_h[j]   = a[k][1];
+        k++;
+      }
     }
-  }
+  
+    const __m256i zero = _mm256_setzero_si256();
+  __m256i m0, m1, m2, m3, t;
+  const __m512i one = _mm512_set1_epi64(0x01);
 
-  temp[0] = _mm256_xor_si256(temp[0], temp[1]);
+  uint8_t stateOut0[16];  
+  uint8_t stateOut1[16];  
+  uint8_t o;
+ 
+    for(int j=0,id=0;j<128;j+=2,id++){
+      
+      __m512i Al0,Al1,Ah0,Ah1,Tmp, Tmp2, aux;
 
-  _mm_storeu_si128((__m128i *)c,
-                  _mm_xor_si128(_mm256_extracti128_si256(temp[0], 0),
-                  _mm256_extracti128_si256(temp[0], 1)));
+      Tmp = _mm512_loadu_si512((const __m512i *)b[j]);
+      
+      Al0 =  _mm512_broadcast_i32x2(_mm512_castsi512_si128(Tmp));
+      Ah0 =  _mm512_broadcast_i32x2(_mm512_castsi512_si128(_mm512_bsrli_epi128(Tmp,8)));
+      
+      Tmp = _mm512_loadu_si512((const __m512i *)b[j+1]);
+      Al1 =  _mm512_broadcast_i32x2(_mm512_castsi512_si128(Tmp));
+      Ah1 =  _mm512_broadcast_i32x2(_mm512_castsi512_si128(_mm512_bsrli_epi128(Tmp,8)));
+      
+      for(int i=0;i<8;i++){
+        Tmp  = _mm512_loadu_si512((const __m512i *)matrix_U_l+i);
+        Tmp2 = _mm512_loadu_si512((const __m512i *)matrix_U_h+i);
+
+        aux = _mm512_xor_epi64(_mm512_and_epi64(Al0,Tmp),_mm512_and_epi64(Ah0,Tmp2));
+        aux = _mm512_popcnt_epi64(aux);
+        aux = _mm512_and_epi64(aux,one);
+        o = _mm512_cmp_epi64_mask (aux, one, 0x00);
+        stateOut0[i] = o;
+
+        aux = _mm512_xor_epi64(_mm512_and_epi64(Al1,Tmp),_mm512_and_epi64(Ah1,Tmp2));
+        aux = _mm512_popcnt_epi64(aux);
+        aux = _mm512_and_epi64(aux,one);
+        o = _mm512_cmp_epi64_mask (aux, one, 0x00);
+        stateOut0[i+8] = o;
+      }
+      
+      for(int i=8,k1=0;i<16;i++,k1++){
+        Tmp  = _mm512_loadu_si512((const __m512i *)matrix_U_l+i);
+        Tmp2 = _mm512_loadu_si512((const __m512i *)matrix_U_h+i);
+
+        aux = _mm512_xor_epi64(_mm512_and_epi64(Al0,Tmp),_mm512_and_epi64(Ah0,Tmp2));
+        aux = _mm512_popcnt_epi64(aux);
+        aux = _mm512_and_epi64(aux,one);
+        o = _mm512_cmp_epi64_mask (aux, one, 0x00);
+        stateOut1[k1] = o;
+
+        aux = _mm512_xor_epi64(_mm512_and_epi64(Al1,Tmp),_mm512_and_epi64(Ah1,Tmp2));
+        aux = _mm512_popcnt_epi64(aux);
+        aux = _mm512_and_epi64(aux,one);
+        o = _mm512_cmp_epi64_mask (aux, one, 0x00);
+        stateOut1[k1+8] = o;
+      }
+      
+      GF_from_bytes(c[id], stateOut0);
+      GF_from_bytes(c[id+64], stateOut1);
+    }
 }
 
 // void GF_transposed_matmul_add_N_A(GF c[AIMER_N], const GF a[AIMER_N],const uint64_t b[AIM2_NUM_BITS_FIELD])
@@ -800,18 +845,519 @@ void GF_transposed_matmul_2(GF c, const GF a, const GF b[AIM2_NUM_BITS_FIELD])
 //   printBytes(c[3],16);
 //   getchar();
 
-  
-  
+
 
 void GF_transposed_matmul_add_N_A(GF c[AIMER_N], const GF a[AIMER_N],const uint64_t bl[AIM2_NUM_BITS_FIELD],const uint64_t bh[AIM2_NUM_BITS_FIELD])
 {
-  const __m256i zero = _mm256_setzero_si256();
-  __m256i m0, m1, m2, m3, t;
+
+  uint8_t tmpL[64];
+  uint8_t tmpH[64];
+  
+  __m512i Al,Ah,Al1,Ah1, Aux0,Aux1, TmpL, TmpH, TmpL1, TmpH1, r0,r1,r2,r3;
+  
+  const __m512i m0 =  _mm512_set_epi8(63,55,47,39,31,23,15,7,
+                                      62,54,46,38,30,22,14,6,
+                                      61,53,45,37,29,21,13,5,
+                                      60,52,44,36,28,20,12,4,
+                                      59,51,43,35,27,19,11,3,
+                                      58,50,42,34,26,18,10,2,
+                                      57,49,41,33,25,17,9,1,
+                                      56,48,40,32,24,16,8,0);
+
+  
+  
+    Al = _mm512_loadu_si512((const __m512i *)a);
+    Ah = _mm512_loadu_si512((const __m512i *)a+1);
+    Al1 = _mm512_loadu_si512((const __m512i *)a+2);
+    Ah1 = _mm512_loadu_si512((const __m512i *)a+3);
+
+    TmpL = _mm512_unpacklo_epi64 (Al,Ah);
+    TmpH = _mm512_unpackhi_epi64 (Al,Ah);
+    TmpL1 = _mm512_unpacklo_epi64 (Al1,Ah1);
+    TmpH1 = _mm512_unpackhi_epi64 (Al1,Ah1);
+
+    const __m512i one =  _mm512_set1_epi64(1);
+    const __m512i ones = _mm512_set1_epi64(-1);
+    const __m512i zero = _mm512_setzero_si512();
+    
+    Al = _mm512_loadu_si512((const __m512i *)c);
+    Ah = _mm512_loadu_si512((const __m512i *)c+1);
+    Al1 = _mm512_loadu_si512((const __m512i *)c+2);
+    Ah1 = _mm512_loadu_si512((const __m512i *)c+3);
+
+    r0 = _mm512_unpacklo_epi64 (Al,Ah);
+    r1 = _mm512_unpackhi_epi64 (Al,Ah);
+    r2 = _mm512_unpacklo_epi64 (Al1,Ah1);
+    r3 = _mm512_unpackhi_epi64 (Al1,Ah1);
+
+    
+    for(int j=0;j<64;j++){
+      Aux0 = _mm512_set1_epi64(bl[j]);
+      Aux1 = _mm512_set1_epi64(bh[j]);
+      
+      Al = _mm512_and_si512(TmpL,one);
+      Al = _mm512_sub_epi64(zero,Al);
+      Al1 = _mm512_and_si512(TmpL1,one);
+      Al1 = _mm512_sub_epi64(zero,Al1);
+
+      r0 = _mm512_xor_si512(_mm512_and_si512(Al,Aux0),r0);
+      r1 = _mm512_xor_si512(_mm512_and_si512(Al,Aux1),r1);
+      r2 = _mm512_xor_si512(_mm512_and_si512(Al1,Aux0),r2);
+      r3 = _mm512_xor_si512(_mm512_and_si512(Al1,Aux1),r3);
+      TmpL = _mm512_srli_epi64(TmpL,1);
+      TmpL1 = _mm512_srli_epi64(TmpL1,1);
+    }
+
+    for(int j=64;j<128;j++){
+      Aux0 = _mm512_set1_epi64(bl[j]);
+      Aux1 = _mm512_set1_epi64(bh[j]);
+      
+      Al = _mm512_and_si512(TmpH,one);
+      Al = _mm512_sub_epi64(zero,Al);
+      Al1 = _mm512_and_si512(TmpH1,one);
+      Al1 = _mm512_sub_epi64(zero,Al1);
+
+      r0 = _mm512_xor_si512(_mm512_and_si512(Al,Aux0),r0);
+      r1 = _mm512_xor_si512(_mm512_and_si512(Al,Aux1),r1);
+      r2 = _mm512_xor_si512(_mm512_and_si512(Al1,Aux0),r2);
+      r3 = _mm512_xor_si512(_mm512_and_si512(Al1,Aux1),r3);
+      TmpH = _mm512_srli_epi64(TmpH,1);
+      TmpH1 = _mm512_srli_epi64(TmpH1,1);
+    }
+
+    Al  = _mm512_unpacklo_epi64 (r0,r1);
+    Ah  = _mm512_unpackhi_epi64 (r0,r1);
+    Al1 = _mm512_unpacklo_epi64 (r2,r3);
+    Ah1 = _mm512_unpackhi_epi64 (r2,r3);
+    
+    _mm512_storeu_si512((__m512i*)c  ,Al);
+    _mm512_storeu_si512((__m512i*)c+1,Ah);
+    _mm512_storeu_si512((__m512i*)c+2,Al1);
+    _mm512_storeu_si512((__m512i*)c+3,Ah1);
+   
+}
+
+void GF_transposed_matmul_add_N_A_v7(GF c[AIMER_N], const GF a[AIMER_N],const uint64_t bl[AIM2_NUM_BITS_FIELD],const uint64_t bh[AIM2_NUM_BITS_FIELD])
+{
+
+  uint8_t tmpL[64];
+  uint8_t tmpH[64];
+  
+  __m512i Al,Ah,Al1,Ah1, Aux0,Aux1, TmpL, TmpH, TmpL1, TmpH1, r0,r1,r2,r3;
+  
+  const __m512i m0 =  _mm512_set_epi8(63,55,47,39,31,23,15,7,
+                                      62,54,46,38,30,22,14,6,
+                                      61,53,45,37,29,21,13,5,
+                                      60,52,44,36,28,20,12,4,
+                                      59,51,43,35,27,19,11,3,
+                                      58,50,42,34,26,18,10,2,
+                                      57,49,41,33,25,17,9,1,
+                                      56,48,40,32,24,16,8,0);
+
+  
+  
+    Al = _mm512_loadu_si512((const __m512i *)a);
+    Ah = _mm512_loadu_si512((const __m512i *)a+1);
+    Al1 = _mm512_loadu_si512((const __m512i *)a+2);
+    Ah1 = _mm512_loadu_si512((const __m512i *)a+3);
+
+    TmpL = _mm512_unpacklo_epi64 (Al,Ah);
+    TmpH = _mm512_unpackhi_epi64 (Al,Ah);
+    TmpL1 = _mm512_unpacklo_epi64 (Al1,Ah1);
+    TmpH1 = _mm512_unpackhi_epi64 (Al1,Ah1);
+
+    const __m512i one =  _mm512_set1_epi64(1);
+    const __m512i ones = _mm512_set1_epi64(-1);
+    const __m512i zero = _mm512_setzero_si512();
+    
+    Al = _mm512_loadu_si512((const __m512i *)c);
+    Ah = _mm512_loadu_si512((const __m512i *)c+1);
+    Al1 = _mm512_loadu_si512((const __m512i *)c+2);
+    Ah1 = _mm512_loadu_si512((const __m512i *)c+3);
+
+    r0 = _mm512_unpacklo_epi64 (Al,Ah);
+    r1 = _mm512_unpackhi_epi64 (Al,Ah);
+    r2 = _mm512_unpacklo_epi64 (Al1,Ah1);
+    r3 = _mm512_unpackhi_epi64 (Al1,Ah1);
+
+    
+    for(int j=0;j<64;j++){
+      Aux0 = _mm512_set1_epi64(bl[j]);
+      Aux1 = _mm512_set1_epi64(bh[j]);
+      
+      Al = _mm512_and_si512(TmpL,one);
+      Al = _mm512_sub_epi64(zero,Al);
+      Al1 = _mm512_and_si512(TmpL1,one);
+      Al1 = _mm512_sub_epi64(zero,Al1);
+
+      r0 = _mm512_xor_si512(_mm512_and_si512(Al,Aux0),r0);
+      r1 = _mm512_xor_si512(_mm512_and_si512(Al,Aux1),r1);
+      r2 = _mm512_xor_si512(_mm512_and_si512(Al1,Aux0),r2);
+      r3 = _mm512_xor_si512(_mm512_and_si512(Al1,Aux1),r3);
+      TmpL = _mm512_srli_epi64(TmpL,1);
+      TmpL1 = _mm512_srli_epi64(TmpL1,1);
+    }
+
+    for(int j=64;j<128;j++){
+      Aux0 = _mm512_set1_epi64(bl[j]);
+      Aux1 = _mm512_set1_epi64(bh[j]);
+      
+      Al = _mm512_and_si512(TmpH,one);
+      Al = _mm512_sub_epi64(zero,Al);
+      Al1 = _mm512_and_si512(TmpH1,one);
+      Al1 = _mm512_sub_epi64(zero,Al1);
+
+      r0 = _mm512_xor_si512(_mm512_and_si512(Al,Aux0),r0);
+      r1 = _mm512_xor_si512(_mm512_and_si512(Al,Aux1),r1);
+      r2 = _mm512_xor_si512(_mm512_and_si512(Al1,Aux0),r2);
+      r3 = _mm512_xor_si512(_mm512_and_si512(Al1,Aux1),r3);
+      TmpH = _mm512_srli_epi64(TmpH,1);
+      TmpH1 = _mm512_srli_epi64(TmpH1,1);
+    }
+
+    Al  = _mm512_unpacklo_epi64 (r0,r1);
+    Ah  = _mm512_unpackhi_epi64 (r0,r1);
+    Al1 = _mm512_unpacklo_epi64 (r2,r3);
+    Ah1 = _mm512_unpackhi_epi64 (r2,r3);
+    
+    _mm512_storeu_si512((__m512i*)c  ,Al);
+    _mm512_storeu_si512((__m512i*)c+1,Ah);
+    _mm512_storeu_si512((__m512i*)c+2,Al1);
+    _mm512_storeu_si512((__m512i*)c+3,Ah1);
+   
+}
+
+
+void GF_transposed_matmul_add_N_A_v6(GF c[AIMER_N], const GF a[AIMER_N],const uint64_t bl[AIM2_NUM_BITS_FIELD],const uint64_t bh[AIM2_NUM_BITS_FIELD])
+{
+
+  uint8_t tmpL[64];
+  uint8_t tmpH[64];
+  
+  __m512i Al,Ah, Aux0,Aux1, TmpL, TmpH,r0,r1;
+  
+  const __m512i m0 =  _mm512_set_epi8(63,55,47,39,31,23,15,7,
+                                      62,54,46,38,30,22,14,6,
+                                      61,53,45,37,29,21,13,5,
+                                      60,52,44,36,28,20,12,4,
+                                      59,51,43,35,27,19,11,3,
+                                      58,50,42,34,26,18,10,2,
+                                      57,49,41,33,25,17,9,1,
+                                      56,48,40,32,24,16,8,0);
+
+  
+  for(int p=0;p<4;p+=2){
+    Aux0 = _mm512_loadu_si512((const __m512i *)a+p);
+    Aux1 = _mm512_loadu_si512((const __m512i *)a+p+1);
+
+    TmpL = _mm512_unpacklo_epi64 (Aux0,Aux1);
+    TmpH = _mm512_unpackhi_epi64 (Aux0,Aux1);
+
+    const __m512i one =  _mm512_set1_epi64(1);
+    const __m512i ones = _mm512_set1_epi64(-1);
+    const __m512i zero = _mm512_setzero_si512();
+    // r0 = _mm512_setzero_si512();//_mm512_loadu_si512((const __m512i *)c+p);
+    // r1 = _mm512_setzero_si512();//_mm512_loadu_si512((const __m512i *)c+p+1);
+    Al = _mm512_loadu_si512((const __m512i *)c+p);
+    Ah = _mm512_loadu_si512((const __m512i *)c+p+1);
+
+    r0 = _mm512_unpacklo_epi64 (Al,Ah);
+    r1 = _mm512_unpackhi_epi64 (Al,Ah);
+
+    
+    for(int j=0;j<64;j++){
+      Aux0 = _mm512_set1_epi64(bl[j]);
+      Aux1 = _mm512_set1_epi64(bh[j]);
+      
+      Al = _mm512_and_si512(TmpL,one);
+      Al = _mm512_sub_epi64(zero,Al);
+
+      r0 = _mm512_xor_si512(_mm512_and_si512(Al,Aux0),r0);
+      r1 = _mm512_xor_si512(_mm512_and_si512(Al,Aux1),r1);
+      TmpL = _mm512_srli_epi64(TmpL,1);
+    }
+
+    for(int j=64;j<128;j++){
+      Aux0 = _mm512_set1_epi64(bl[j]);
+      Aux1 = _mm512_set1_epi64(bh[j]);
+      
+      Al = _mm512_and_si512(TmpH,one);
+      Al = _mm512_sub_epi64(zero,Al);
+
+      r0 = _mm512_xor_si512(_mm512_and_si512(Al,Aux0),r0);
+      r1 = _mm512_xor_si512(_mm512_and_si512(Al,Aux1),r1);
+      TmpH = _mm512_srli_epi64(TmpH,1);
+    }
+    Al = _mm512_unpacklo_epi64 (r0,r1);
+    Ah = _mm512_unpackhi_epi64 (r0,r1);
+    
+    _mm512_storeu_si512((__m512i*)c+p  ,Al);
+    _mm512_storeu_si512((__m512i*)c+p+1,Ah);
+  }  
+}
+
+
+void GF_transposed_matmul_add_N_A_v5(GF c[AIMER_N], const GF a[AIMER_N],const uint64_t bl[AIM2_NUM_BITS_FIELD],const uint64_t bh[AIM2_NUM_BITS_FIELD])
+{
   const __m512i one = _mm512_set1_epi64(0x01);
 
-  uint8_t stateOut[16];  
+  uint8_t tmpL[64];
+  uint8_t tmpH[64];
+  uint8_t tmpL1[64];
+  uint8_t tmpH1[64];
   
+  __m512i Al,Ah, Aux0,Aux1, TmpL, TmpH;
+  __m512i Al1,Ah1, Aux2,Aux3, TmpL1, TmpH1;
+  __m128i aux2;
+  
+  const __m512i m0 =  _mm512_set_epi8(63,55,47,39,31,23,15,7,
+                                      62,54,46,38,30,22,14,6,
+                                      61,53,45,37,29,21,13,5,
+                                      60,52,44,36,28,20,12,4,
+                                      59,51,43,35,27,19,11,3,
+                                      58,50,42,34,26,18,10,2,
+                                      57,49,41,33,25,17,9,1,
+                                      56,48,40,32,24,16,8,0);
 
+  
+  
+  Aux0 = _mm512_loadu_si512((const __m512i *)a+0);
+  Aux1 = _mm512_loadu_si512((const __m512i *)a+1);
+  Aux2 = _mm512_loadu_si512((const __m512i *)a+2);
+  Aux3 = _mm512_loadu_si512((const __m512i *)a+3);
+
+  TmpL  = _mm512_unpacklo_epi64 (Aux0,Aux1);
+  TmpH  = _mm512_unpackhi_epi64 (Aux0,Aux1);
+  TmpL1 = _mm512_unpacklo_epi64 (Aux2,Aux3);
+  TmpH1 = _mm512_unpackhi_epi64 (Aux2,Aux3);
+
+  TmpL  = _mm512_permutexvar_epi8(m0,TmpL);
+  TmpH  = _mm512_permutexvar_epi8(m0,TmpH);
+  TmpL1 = _mm512_permutexvar_epi8(m0,TmpL1);
+  TmpH1 = _mm512_permutexvar_epi8(m0,TmpH1);
+
+  TmpL = transpose8_512(TmpL);
+  TmpH = transpose8_512(TmpH);
+  TmpL1 = transpose8_512(TmpL1);
+  TmpH1 = transpose8_512(TmpH1);
+  _mm512_storeu_si512((__m512i*)tmpL,TmpL);
+  _mm512_storeu_si512((__m512i*)tmpH,TmpH);
+  _mm512_storeu_si512((__m512i*)tmpL1,TmpL1);
+  _mm512_storeu_si512((__m512i*)tmpH1,TmpH1);
+
+  Aux0 = _mm512_maskz_set1_epi64(tmpL[0],bl[0]);
+  Aux1 = _mm512_maskz_set1_epi64(tmpL[0],bh[0]);    
+  Aux2 = _mm512_maskz_set1_epi64(tmpL1[0],bl[0]);
+  Aux3 = _mm512_maskz_set1_epi64(tmpL1[0],bh[0]);    
+  for(int j=1;j<64;j++){
+    Aux0 = _mm512_xor_epi64(Aux0,_mm512_maskz_set1_epi64(tmpL[j],bl[j]));
+    Aux1 = _mm512_xor_epi64(Aux1,_mm512_maskz_set1_epi64(tmpL[j],bh[j]));
+    Aux2 = _mm512_xor_epi64(Aux2,_mm512_maskz_set1_epi64(tmpL1[j],bl[j]));
+    Aux3 = _mm512_xor_epi64(Aux3,_mm512_maskz_set1_epi64(tmpL1[j],bh[j]));
+    }
+    
+  for(int j=64,k=0;j<128;j++,k++){
+    Aux0 = _mm512_xor_epi64(Aux0,_mm512_maskz_set1_epi64(tmpH[k],bl[j]));
+    Aux1 = _mm512_xor_epi64(Aux1,_mm512_maskz_set1_epi64(tmpH[k],bh[j]));
+    Aux2 = _mm512_xor_epi64(Aux2,_mm512_maskz_set1_epi64(tmpH1[k],bl[j]));
+    Aux3 = _mm512_xor_epi64(Aux3,_mm512_maskz_set1_epi64(tmpH1[k],bh[j]));
+  }
+
+  TmpL  = _mm512_loadu_si512((const __m512i *)c+0);
+  TmpH  = _mm512_loadu_si512((const __m512i *)c+1);
+  TmpL1 = _mm512_loadu_si512((const __m512i *)c+2);
+  TmpH1 = _mm512_loadu_si512((const __m512i *)c+3);
+
+  Al = _mm512_unpacklo_epi64 (TmpL,TmpH);
+  Ah = _mm512_unpackhi_epi64 (TmpL,TmpH);
+  Al1 = _mm512_unpacklo_epi64 (TmpL1,TmpH1);
+  Ah1 = _mm512_unpackhi_epi64 (TmpL1,TmpH1);
+
+  Aux0 = _mm512_xor_epi64(Aux0, Al);
+  Aux1 = _mm512_xor_epi64(Aux1, Ah);
+  Aux2 = _mm512_xor_epi64(Aux2, Al1);
+  Aux3 = _mm512_xor_epi64(Aux3, Ah1);
+
+  Al  = _mm512_unpacklo_epi64 (Aux0,Aux1);
+  Ah  = _mm512_unpackhi_epi64 (Aux0,Aux1);
+  Al1 = _mm512_unpacklo_epi64 (Aux2,Aux3);
+  Ah1 = _mm512_unpackhi_epi64 (Aux2,Aux3);
+
+  _mm512_storeu_si512((__m512i*)c+0,Al);
+  _mm512_storeu_si512((__m512i*)c+1,Ah);
+  _mm512_storeu_si512((__m512i*)c+2,Al1);
+  _mm512_storeu_si512((__m512i*)c+3,Ah1);
+
+}
+
+void GF_transposed_matmul_add_N_A_v4(GF c[AIMER_N], const GF a[AIMER_N],const uint64_t bl[AIM2_NUM_BITS_FIELD],const uint64_t bh[AIM2_NUM_BITS_FIELD])
+{
+  const __m512i one = _mm512_set1_epi64(0x01);
+
+  uint8_t tmpL[64];
+  uint8_t tmpH[64];
+  
+  __m512i Al,Ah, Aux0,Aux1, TmpL, TmpH;
+  __m128i aux2;
+  
+  const __m512i m0 =  _mm512_set_epi8(63,55,47,39,31,23,15,7,
+                                      62,54,46,38,30,22,14,6,
+                                      61,53,45,37,29,21,13,5,
+                                      60,52,44,36,28,20,12,4,
+                                      59,51,43,35,27,19,11,3,
+                                      58,50,42,34,26,18,10,2,
+                                      57,49,41,33,25,17,9,1,
+                                      56,48,40,32,24,16,8,0);
+
+  
+  for(int p=0;p<4;p+=2){
+    Aux0 = _mm512_loadu_si512((const __m512i *)a+p);
+    Aux1 = _mm512_loadu_si512((const __m512i *)a+p+1);
+
+    TmpL = _mm512_unpacklo_epi64 (Aux0,Aux1);
+    TmpH = _mm512_unpackhi_epi64 (Aux0,Aux1);
+
+    TmpL = _mm512_permutexvar_epi8(m0,TmpL);
+    TmpH = _mm512_permutexvar_epi8(m0,TmpH);
+
+    TmpL = transpose8_512(TmpL);
+    TmpH = transpose8_512(TmpH);
+    _mm512_storeu_si512((__m512i*)tmpL,TmpL);
+    _mm512_storeu_si512((__m512i*)tmpH,TmpH);
+
+    Aux0 = _mm512_maskz_set1_epi64(tmpL[0],bl[0]);
+    Aux1 = _mm512_maskz_set1_epi64(tmpL[0],bh[0]);
+    for(int j=1;j<64;j++){
+      Aux0 = _mm512_xor_epi64(Aux0,_mm512_maskz_set1_epi64(tmpL[j],bl[j]));
+      Aux1 = _mm512_xor_epi64(Aux1,_mm512_maskz_set1_epi64(tmpL[j],bh[j]));
+    }
+    
+    for(int j=64,k=0;j<128;j++,k++){
+      Aux0 = _mm512_xor_epi64(Aux0,_mm512_maskz_set1_epi64(tmpH[k],bl[j]));
+      Aux1 = _mm512_xor_epi64(Aux1,_mm512_maskz_set1_epi64(tmpH[k],bh[j]));
+    }
+
+    TmpL = _mm512_loadu_si512((const __m512i *)c+p);
+    TmpH = _mm512_loadu_si512((const __m512i *)c+p+1);
+
+    Al = _mm512_unpacklo_epi64 (TmpL,TmpH);
+    Ah = _mm512_unpackhi_epi64 (TmpL,TmpH);
+
+    Aux0 = _mm512_xor_epi64(Aux0, Al);
+    Aux1 = _mm512_xor_epi64(Aux1, Ah);
+
+    Al = _mm512_unpacklo_epi64 (Aux0,Aux1);
+    Ah = _mm512_unpackhi_epi64 (Aux0,Aux1);
+
+    
+    _mm512_storeu_si512((__m512i*)c+p  ,Al);
+    _mm512_storeu_si512((__m512i*)c+p+1,Ah);
+  }  
+
+}
+  
+void GF_transposed_matmul_add_N_A_v3(GF c[AIMER_N], const GF a[AIMER_N],const uint64_t bl[AIM2_NUM_BITS_FIELD],const uint64_t bh[AIM2_NUM_BITS_FIELD])
+{
+  const __m512i one = _mm512_set1_epi64(0x01);
+
+  uint8_t stateOut0[16];
+  uint8_t stateOut1[16];
+  uint8_t stateOut2[16];
+  uint8_t stateOut3[16];
+  
+  __m512i Al[4],Ah[4], Aux, Tmp, Tmp2,aux[4];
+  __m128i aux2;
+  
+  for(int j=0;j<16;j+=4){
+    Aux = _mm512_loadu_si512((const __m512i *)a[j]);
+    aux2 = _mm512_extracti32x4_epi32(Aux,0);
+    Al[0] =  _mm512_broadcast_i32x2(aux2);
+    Ah[0] =  _mm512_broadcast_i32x2(_mm_bsrli_si128(aux2,8));
+    aux2 = _mm512_extracti32x4_epi32(Aux,1);
+    Al[1] =  _mm512_broadcast_i32x2(aux2);
+    Ah[1] =  _mm512_broadcast_i32x2(_mm_bsrli_si128(aux2,8));
+    aux2 = _mm512_extracti32x4_epi32(Aux,2);
+    Al[2] =  _mm512_broadcast_i32x2(aux2);
+    Ah[2] =  _mm512_broadcast_i32x2(_mm_bsrli_si128(aux2,8));
+    aux2 = _mm512_extracti32x4_epi32(Aux,3);
+    Al[3] =  _mm512_broadcast_i32x2(aux2);
+    Ah[3] =  _mm512_broadcast_i32x2(_mm_bsrli_si128(aux2,8));
+    
+    for(int i=15,k=0;i>=0;i--,k++){
+      Tmp  = _mm512_loadu_si512((const __m512i *)bl+i);
+      Tmp2 = _mm512_loadu_si512((const __m512i *)bh+i);
+      
+      aux[0] = _mm512_xor_epi64(_mm512_and_epi64(Al[0],Tmp),_mm512_and_epi64(Ah[0],Tmp2));
+      aux[1] = _mm512_xor_epi64(_mm512_and_epi64(Al[1],Tmp),_mm512_and_epi64(Ah[1],Tmp2));
+      aux[2] = _mm512_xor_epi64(_mm512_and_epi64(Al[2],Tmp),_mm512_and_epi64(Ah[2],Tmp2));
+      aux[3] = _mm512_xor_epi64(_mm512_and_epi64(Al[3],Tmp),_mm512_and_epi64(Ah[3],Tmp2));
+      aux[0] = _mm512_popcnt_epi64(aux[0]);
+      aux[1] = _mm512_popcnt_epi64(aux[1]);
+      aux[2] = _mm512_popcnt_epi64(aux[2]);
+      aux[3] = _mm512_popcnt_epi64(aux[3]);
+      aux[0] = _mm512_and_epi64(aux[0],one);
+      aux[1] = _mm512_and_epi64(aux[1],one);
+      aux[2] = _mm512_and_epi64(aux[2],one);
+      aux[3] = _mm512_and_epi64(aux[3],one);
+      uint8_t o0 = _mm512_cmp_epi64_mask (aux[0], one, 0x00);
+      uint8_t o1 = _mm512_cmp_epi64_mask (aux[1], one, 0x00);
+      uint8_t o2 = _mm512_cmp_epi64_mask (aux[2], one, 0x00);
+      uint8_t o3 = _mm512_cmp_epi64_mask (aux[3], one, 0x00);
+      stateOut0[k] = o0;
+      stateOut1[k] = o1;
+      stateOut2[k] = o2;
+      stateOut3[k] = o3;
+    }
+    GF r0,r1,r2,r3;
+    GF_from_bytes(r0,stateOut0);
+    GF_from_bytes(r1,stateOut1);
+    GF_from_bytes(r2,stateOut2);
+    GF_from_bytes(r3,stateOut3);
+    GF_add(c[j+0],c[j+0],r0);
+    GF_add(c[j+1],c[j+1],r1);
+    GF_add(c[j+2],c[j+2],r2);
+    GF_add(c[j+3],c[j+3],r3);
+  }
+}
+
+void GF_transposed_matmul_add_N_A_v2(GF c[AIMER_N], const GF a[AIMER_N],const uint64_t bl[AIM2_NUM_BITS_FIELD],const uint64_t bh[AIM2_NUM_BITS_FIELD])
+{
+  const __m512i one = _mm512_set1_epi64(0x01);
+
+  uint8_t stateOut[16];
+  
+  __m512i Al,Ah, Aux, Tmp, Tmp2;
+  __m128i aux2;
+  
+  for(int j=0;j<16;j++){
+    aux2 = _mm_loadu_si128((const __m128i *)a[j]);
+    Al =  _mm512_broadcast_i32x2(aux2);
+    Ah =  _mm512_broadcast_i32x2(_mm_bsrli_si128(aux2,8));
+
+    for(int i=15,k=0;i>=0;i--,k++){
+      Tmp  = _mm512_loadu_si512((const __m512i *)bl+i);
+      Tmp2 = _mm512_loadu_si512((const __m512i *)bh+i);
+        
+      Tmp = _mm512_xor_epi64(_mm512_and_epi64(Al,Tmp),_mm512_and_epi64(Ah,Tmp2));
+      Tmp = _mm512_popcnt_epi64(Tmp);
+      Tmp = _mm512_and_epi64(Tmp,one);
+          uint8_t o = _mm512_cmp_epi64_mask (Tmp, one, 0x00);
+          stateOut[k] = o;
+    }
+    GF r;
+    GF_from_bytes(r,stateOut);
+    GF_add(c[j],c[j],r);
+  }
+}
+
+
+
+void GF_transposed_matmul_add_N_A_v1(GF c[AIMER_N], const GF a[AIMER_N],const uint64_t bl[AIM2_NUM_BITS_FIELD],const uint64_t bh[AIM2_NUM_BITS_FIELD])
+{
+  const __m512i one = _mm512_set1_epi64(0x01);
+
+  uint8_t stateOut[16];
+  
   __m512i Al,Ah, Aux, Tmp, Tmp2;
   __m128i aux2;
   
@@ -832,7 +1378,9 @@ void GF_transposed_matmul_add_N_A(GF c[AIMER_N], const GF a[AIMER_N],const uint6
           uint8_t o = _mm512_cmp_epi64_mask (Tmp, one, 0x00);
           stateOut[k] = o;
     }
-    GF_add(c[j*4],c[j*4],stateOut);
+    GF r;
+    GF_from_bytes(r,stateOut);
+    GF_add(c[j*4],c[j*4],r);
     //-----------
     aux2 = _mm512_extracti32x4_epi32(Aux,1);
     Al =  _mm512_broadcast_i32x2(aux2);
@@ -848,7 +1396,8 @@ void GF_transposed_matmul_add_N_A(GF c[AIMER_N], const GF a[AIMER_N],const uint6
           uint8_t o = _mm512_cmp_epi64_mask (Tmp, one, 0x00);
           stateOut[k] = o;
     }
-    GF_add(c[j*4+1],c[j*4+1],stateOut);
+    GF_from_bytes(r,stateOut);
+    GF_add(c[j*4+1],c[j*4+1],r);
     //------------------------------
     aux2 = _mm512_extracti32x4_epi32(Aux,2);
     Al =  _mm512_broadcast_i32x2(aux2);
@@ -864,7 +1413,8 @@ void GF_transposed_matmul_add_N_A(GF c[AIMER_N], const GF a[AIMER_N],const uint6
           uint8_t o = _mm512_cmp_epi64_mask (Tmp, one, 0x00);
           stateOut[k] = o;
     }
-    GF_add(c[j*4+2],c[j*4+2],stateOut);
+    GF_from_bytes(r,stateOut);
+    GF_add(c[j*4+2],c[j*4+2],r);
     //-------------------------------
     aux2 = _mm512_extracti32x4_epi32(Aux,3);
     Al =  _mm512_broadcast_i32x2(aux2);
@@ -880,9 +1430,150 @@ void GF_transposed_matmul_add_N_A(GF c[AIMER_N], const GF a[AIMER_N],const uint6
           uint8_t o = _mm512_cmp_epi64_mask (Tmp, one, 0x00);
           stateOut[k] = o;
     }
-    GF_add(c[j*4+3],c[j*4+3],stateOut);
+    GF_from_bytes(r,stateOut);
+    GF_add(c[j*4+3],c[j*4+3],r);
     //--------------------
   }
+
+}
+
+static uint8_t bitrev(uint8_t b)
+{
+  uint64_t r = 0;
+  unsigned byte_len = 8;
+
+  while (byte_len--)
+  {
+    r = (r << 1) | (b & 1);
+    b >>= 1;
+  }
+  return r;
+}
+
+
+
+void GF_transposed_matmul_add_N_M(GF c[AIMER_N], const GF a[AIMER_N],const GF b[AIM2_NUM_BITS_FIELD])
+{
+  const __m256i zero = _mm256_setzero_si256();
+  __m256i m0, m1, m2, m3, t;
+  const __m512i one = _mm512_set1_epi64(0x01);
+
+  uint8_t stateOut[16];
+  
+  uint8_t state[64];
+  
+
+  __m512i Al,Ah, Aux, Aux2, Tmp, Tmp2;
+  __m256i v;
+  __m128i aux2;
+
+
+  
+  Aux  = _mm512_loadu_si512((const __m512i *)a[0]);
+  Aux2 = _mm512_loadu_si512((const __m512i *)a[1]);  
+
+  
+  Aux  = transpose8_512(Aux);
+  Aux2 = transpose8_512(Aux2);
+
+  _mm512_storeu_si512((__m512i*)state,Aux);
+
+  
+  Al = _mm512_maskz_loadu_epi64(bitrev(state[0]),(const __m512i *)b[0]);
+  printf("%.2x\n",state[0]);
+  printf("%.2x\n",bitrev(state[0]));
+  for(int i=1;i<16;i++){
+    Tmp = _mm512_maskz_loadu_epi64(bitrev(state[i]),(const __m512i *)b[i]);
+    Al = _mm512_xor_epi64(Al,Tmp);
+  }
+  print_512(Al);
+  v = _mm256_xor_epi64(_mm512_extracti64x4_epi64(Al,0),_mm512_extracti64x4_epi64(Al,1));
+  aux2 = _mm_xor_epi64(_mm256_extracti64x2_epi64(v,0),_mm256_extracti64x2_epi64(v,1));
+  print_128(aux2);
+  print_128(_mm_bsrli_si128(aux2,8));
+  aux2 = _mm_xor_epi64(_mm_bsrli_si128(aux2,8),aux2);
+  print_128(aux2);
+
+  getchar();
+
+  // printBytes(a[0],16);
+  // printBytes(state,16);
+  // getchar();
+  
+  // for(int j=0;j<4;j++){
+  //   Aux = _mm512_loadu_si512((const __m512i *)a[j*4]);
+  //   print_512(Aux);
+  //   //-----------
+  //   aux2 = _mm512_extracti32x4_epi32(Aux,0);
+  //   Al =  _mm512_broadcast_i32x2(aux2);
+  //   Ah =  _mm512_broadcast_i32x2(_mm_bsrli_si128(aux2,8));
+  //   print_512(Al);
+  //   print_512(Ah);
+  //   getchar();
+
+  //   for(int i=0;i<16;i++){
+  //     Tmp  = _mm512_loadu_si512((const __m512i *)b[i]);
+  //     Tmp2 = _mm512_loadu_si512((const __m512i *)b[64+i]);
+        
+  //     Tmp = _mm512_xor_epi64(_mm512_and_epi64(Al,Tmp),_mm512_and_epi64(Ah,Tmp2));
+  //     Tmp = _mm512_popcnt_epi64(Tmp);
+  //     Tmp = _mm512_and_epi64(Tmp,one);
+  //         uint8_t o = _mm512_cmp_epi64_mask (Tmp, one, 0x00);
+  //         stateOut[i] = o;
+  //         printf("%.2x\n",o);
+  //         getchar();
+  //   }
+  //   GF_add(c[j*4],c[j*4],stateOut);
+  //   //-----------
+  //   aux2 = _mm512_extracti32x4_epi32(Aux,1);
+  //   Al =  _mm512_broadcast_i32x2(aux2);
+  //   Ah =  _mm512_broadcast_i32x2(_mm_bsrli_si128(aux2,8));
+
+  //   for(int i=0;i<16;i++){
+  //     Tmp  = _mm512_loadu_si512((const __m512i *)b[i]);
+  //     Tmp2 = _mm512_loadu_si512((const __m512i *)b[64+i]);
+        
+  //     Tmp = _mm512_xor_epi64(_mm512_and_epi64(Al,Tmp),_mm512_and_epi64(Ah,Tmp2));
+  //     Tmp = _mm512_popcnt_epi64(Tmp);
+  //     Tmp = _mm512_and_epi64(Tmp,one);
+  //         uint8_t o = _mm512_cmp_epi64_mask (Tmp, one, 0x00);
+  //         stateOut[i] = o;
+  //   }
+  //   GF_add(c[j*4+1],c[j*4+1],stateOut);
+  //   //------------------------------
+  //   aux2 = _mm512_extracti32x4_epi32(Aux,2);
+  //   Al =  _mm512_broadcast_i32x2(aux2);
+  //   Ah =  _mm512_broadcast_i32x2(_mm_bsrli_si128(aux2,8));
+
+  //   for(int i=0;i<16;i++){
+  //     Tmp  = _mm512_loadu_si512((const __m512i *)b[i]);
+  //     Tmp2 = _mm512_loadu_si512((const __m512i *)b[64+i]);
+        
+  //     Tmp = _mm512_xor_epi64(_mm512_and_epi64(Al,Tmp),_mm512_and_epi64(Ah,Tmp2));
+  //     Tmp = _mm512_popcnt_epi64(Tmp);
+  //     Tmp = _mm512_and_epi64(Tmp,one);
+  //         uint8_t o = _mm512_cmp_epi64_mask (Tmp, one, 0x00);
+  //         stateOut[i] = o;
+  //   }
+  //   GF_add(c[j*4+2],c[j*4+2],stateOut);
+  //   //-------------------------------
+  //   aux2 = _mm512_extracti32x4_epi32(Aux,3);
+  //   Al =  _mm512_broadcast_i32x2(aux2);
+  //   Ah =  _mm512_broadcast_i32x2(_mm_bsrli_si128(aux2,8));
+
+  //   for(int i=0;i<16;i++){
+  //     Tmp  = _mm512_loadu_si512((const __m512i *)b[i]);
+  //     Tmp2 = _mm512_loadu_si512((const __m512i *)b[64+i]);
+        
+  //     Tmp = _mm512_xor_epi64(_mm512_and_epi64(Al,Tmp),_mm512_and_epi64(Ah,Tmp2));
+  //     Tmp = _mm512_popcnt_epi64(Tmp);
+  //     Tmp = _mm512_and_epi64(Tmp,one);
+  //         uint8_t o = _mm512_cmp_epi64_mask (Tmp, one, 0x00);
+  //         stateOut[i] = o;
+  //   }
+  //   GF_add(c[j*4+3],c[j*4+3],stateOut);
+  //   //--------------------
+  // }
 
 
   // for(int i=0;i<16;i++)  
@@ -892,8 +1583,7 @@ void GF_transposed_matmul_add_N_A(GF c[AIMER_N], const GF a[AIMER_N],const uint6
 
 }
 
-
-void GF_transposed_matmul_add_N_M(GF c[AIMER_N], const GF a[AIMER_N],const GF b[AIM2_NUM_BITS_FIELD])
+void GF_transposed_matmul_add_N_M_old(GF c[AIMER_N], const GF a[AIMER_N],const GF b[AIM2_NUM_BITS_FIELD])
 {
   const __m256i zero = _mm256_setzero_si256();
   __m256i m0, m1, m2, m3, t;
@@ -907,10 +1597,14 @@ void GF_transposed_matmul_add_N_M(GF c[AIMER_N], const GF a[AIMER_N],const GF b[
   
   for(int j=0;j<4;j++){
     Aux = _mm512_loadu_si512((const __m512i *)a[j*4]);
+    print_512(Aux);
     //-----------
     aux2 = _mm512_extracti32x4_epi32(Aux,0);
     Al =  _mm512_broadcast_i32x2(aux2);
     Ah =  _mm512_broadcast_i32x2(_mm_bsrli_si128(aux2,8));
+    print_512(Al);
+    print_512(Ah);
+    getchar();
 
     for(int i=0;i<16;i++){
       Tmp  = _mm512_loadu_si512((const __m512i *)b[i]);
@@ -921,6 +1615,8 @@ void GF_transposed_matmul_add_N_M(GF c[AIMER_N], const GF a[AIMER_N],const GF b[
       Tmp = _mm512_and_epi64(Tmp,one);
           uint8_t o = _mm512_cmp_epi64_mask (Tmp, one, 0x00);
           stateOut[i] = o;
+          printf("%.2x\n",o);
+          getchar();
     }
     GF_add(c[j*4],c[j*4],stateOut);
     //-----------
