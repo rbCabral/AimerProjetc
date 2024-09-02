@@ -84,6 +84,122 @@ void GF_mul(GF c, const GF a, const GF b)
   _mm_storeu_si128((__m128i *)c, temp_c[0]);
 }
 
+void GF_mul_karat(GF c, const GF a, const GF b)
+{
+  __m128i temp_a, temp_b, temp_m0, temp_m1;
+  __m128i temp_c[2];
+  __m128i temp[3];
+  __m128i irr = _mm_set_epi64x(0x0, 0x87);
+
+  temp_a = _mm_loadu_si128((const __m128i *)a);
+  temp_b = _mm_loadu_si128((const __m128i *)b);
+
+  temp_m0 = _mm_unpacklo_epi64(temp_a, temp_b);
+  temp_m1 = _mm_unpackhi_epi64(temp_a, temp_b);
+  temp_m0 = _mm_xor_si128(temp_m0, temp_m1);
+
+  temp[0] = _mm_clmulepi64_si128(temp_m0, temp_m0, 0x10);
+
+  // polynomial multiplication
+  temp_c[0] = _mm_clmulepi64_si128(temp_a, temp_b, 0x00);
+  temp_c[1] = _mm_clmulepi64_si128(temp_a, temp_b, 0x11);
+
+  temp[0] = _mm_xor_si128(temp[0], temp_c[0]);
+  temp[0] = _mm_xor_si128(temp[0], temp_c[1]);
+
+  temp_c[0] = _mm_xor_si128(temp_c[0], _mm_slli_si128(temp[0], 8));
+  temp_c[1] = _mm_xor_si128(temp_c[1], _mm_srli_si128(temp[0], 8));
+
+  // modular reduction
+  temp[0] = _mm_clmulepi64_si128(temp_c[1], irr, 0x01);
+  temp[1] = _mm_slli_si128(temp[0], 8);
+  temp[2] = _mm_srli_si128(temp[0], 8);
+  temp[2] = _mm_xor_si128(temp[2], temp_c[1]);
+
+  temp_c[0] = _mm_xor_si128(temp_c[0], _mm_clmulepi64_si128(temp[2], irr, 0x00));
+  temp_c[0] = _mm_xor_si128(temp_c[0], temp[1]);
+
+  _mm_storeu_si128((__m128i *)c, temp_c[0]);
+}
+
+void GF_mul_red(GF c, const GF a, const GF b)
+{
+  __m128i temp_a, temp_b;
+  __m128i temp_c0, temp_c1;
+  __m128i temp[3];
+
+  temp_a = _mm_loadu_si128((const __m128i *)a);
+  temp_b = _mm_loadu_si128((const __m128i *)b);
+
+  // polynomial multiplication
+  temp_c0 = _mm_clmulepi64_si128(temp_a, temp_b, 0x00);
+  temp_c1 = _mm_clmulepi64_si128(temp_a, temp_b, 0x11);
+
+  temp[0] = _mm_clmulepi64_si128(temp_a, temp_b, 0x01);
+  temp[1] = _mm_clmulepi64_si128(temp_a, temp_b, 0x10);
+
+  temp[0] = _mm_xor_si128(temp[0], temp[1]);
+
+  // temp_c0 = _mm_xor_si128(temp_c0, _mm_slli_si128(temp[0], 8));
+  temp_c1 = _mm_xor_si128(temp_c1, _mm_srli_si128(temp[0], 8));
+
+  // modular reduction
+  __m128i x = _mm_srli_epi64(temp_c1, 64 - 1);
+  x = _mm_xor_si128(x, _mm_srli_epi64(temp_c1, 64 - 2));
+  x = _mm_xor_si128(x, _mm_srli_epi64(temp_c1, 64 - 7));
+
+  temp_c1 = _mm_xor_si128(temp_c1, _mm_srli_si128(x, 8)); // _mm_unpackhi_epi64(x, zero));
+  x = _mm_xor_si128(temp[0], x);
+  temp_c0 = _mm_xor_si128(temp_c0, _mm_slli_si128(x, 8)); // _mm_unpacklo_epi64(zero, x));
+
+  __m128i t = _mm_add_epi64(temp_c1, temp_c1);
+  __m128i y = _mm_xor_si128(temp_c1, t);
+  y = _mm_xor_si128(y, _mm_add_epi64(t, t));
+  y = _mm_xor_si128(y, _mm_slli_epi64(temp_c1, 7));
+  temp_c0 = _mm_xor_si128(temp_c0, y);
+
+  _mm_storeu_si128((__m128i *)c, temp_c0);
+}
+
+void GF_mul_karat_red(GF c, const GF a, const GF b)
+{
+  const __m128i zero = _mm_setzero_si128();
+  __m128i temp_a, temp_b;
+  __m128i c0, c1, c2;
+
+  temp_a = _mm_loadu_si128((const __m128i *)a);
+  temp_b = _mm_loadu_si128((const __m128i *)b);
+
+  // polynomial multiplication
+  c0 = _mm_unpacklo_epi64(temp_a, temp_b);
+  c1 = _mm_unpackhi_epi64(temp_a, temp_b);
+  c2 = _mm_xor_si128(c0, c1);
+
+  c0 = _mm_clmulepi64_si128(temp_a, temp_b, 0x00);
+  c1 = _mm_clmulepi64_si128(temp_a, temp_b, 0x11);
+  c2 = _mm_clmulepi64_si128(c2, c2, 0x01);
+
+  c2 = _mm_xor_si128(c2, _mm_xor_si128(c0, c1));
+  c1 = _mm_xor_si128(c1, _mm_alignr_epi8(zero, c2, 8)); // _mm_srli_si128(c2, 8));
+
+  // modular reduction
+  temp_a = _mm_srli_epi64(c1, 64 - 1);
+  temp_a = _mm_xor_si128(temp_a, _mm_srli_epi64(c1, 64 - 2));
+  temp_a = _mm_xor_si128(temp_a, _mm_srli_epi64(c1, 64 - 7));
+
+  c1 = _mm_xor_si128(c1, _mm_alignr_epi8(zero, temp_a, 8)); //_mm_srli_si128(temp_a, 8));
+  temp_a = _mm_xor_si128(temp_a, c2);
+  c0 = _mm_xor_si128(c0, _mm_alignr_epi8(temp_a, zero, 8)); // _mm_slli_si128(temp_a, 8));
+
+  c0 = _mm_xor_si128(c0, c1);
+  c2 = _mm_add_epi64(c1, c1);
+  c0 = _mm_xor_si128(c0, c2);
+  c0 = _mm_xor_si128(c0, _mm_add_epi64(c2, c2));
+  c0 = _mm_xor_si128(c0, _mm_slli_epi64(c1, 7));
+
+  _mm_storeu_si128((__m128i *)c, c0);
+}
+
 void GF_mul_N(GF c[AIMER_N], const GF a[AIMER_N], const GF b)
 {
   __m128i x[2], y, z[2], zhi[2], t[4];
@@ -132,6 +248,14 @@ void GF_mul_N(GF c[AIMER_N], const GF a[AIMER_N], const GF b)
 
     _mm_storeu_si128((__m128i *)c[party], z[0]);
     _mm_storeu_si128((__m128i *)c[party + 1], z[1]);
+  }
+}
+
+void GF_mul_N_karat_red(GF c[AIMER_N], const GF a[AIMER_N], const GF b)
+{
+  for (size_t party = 0; party < AIMER_N; party += 1)
+  {
+    GF_mul_karat_red(c[party], a[party], b);
   }
 }
 
@@ -348,6 +472,30 @@ void GF_transposed_matmul(GF c, const GF a, const GF b[AIM2_NUM_BITS_FIELD])
   _mm_storeu_si128((__m128i *)c,
                   _mm_xor_si128(_mm256_extracti128_si256(temp[0], 0),
                   _mm256_extracti128_si256(temp[0], 1)));
+}
+
+void eval_multi_exp_add(GF c, const GF a, const GF matrix_exp[AIM2_NUM_BITS_FIELD])
+{
+  for (size_t i = 0; i < AIM2_NUM_BITS_FIELD; i += 1)
+  {
+    __m128i m = _mm_loadu_si128((__m128i *)matrix_exp[i]);
+    __m128i temp_c = _mm_loadu_si128((__m128i *)c);
+    uint64_t ai = (a[i >> 6] >> (i & ((1 << 6) - 1))) & 0x1;
+    if (ai != 0)
+    {
+      temp_c = _mm_xor_si128(temp_c, m);
+    }
+    _mm_storeu_si128((__m128i *)c, temp_c);
+  }
+}
+
+void GF_transposed_matmul_add_N_opt(GF c[AIMER_N], const GF a[AIMER_N],
+                                    const GF matrix_exp[AIM2_NUM_BITS_FIELD])
+{
+  for (size_t party = 0; party < AIMER_N; party += 1)
+  {
+    eval_multi_exp_add(c[party], a[party], matrix_exp);
+  }
 }
 
 void GF_transposed_matmul_add_N(GF c[AIMER_N], const GF a[AIMER_N],

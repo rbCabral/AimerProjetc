@@ -22,6 +22,15 @@ void GF_from_bytes(GF out, const uint8_t *in);
 void GF_add(GF c, const GF a, const GF b);
 #define GF_mul AIMER_NAMESPACE(GF_mul)
 void GF_mul(GF c, const GF a, const GF b);
+#define GF_mul_karat AIMER_NAMESPACE(GF_mul_karat)
+void GF_mul_karat(GF c, const GF a, const GF b);
+#define GF_mul_red AIMER_NAMESPACE(GF_mul_red)
+void GF_mul_red(GF c, const GF a, const GF b);
+#define GF_mul_karat_red AIMER_NAMESPACE(GF_mul_karat_red)
+void GF_mul_karat_red(GF c, const GF a, const GF b);
+
+#define GF_mul_N_karat_red AIMER_NAMESPACE(GF_mul_N_karat_red)
+void GF_mul_N_karat_red(GF c[AIMER_N], const GF a[AIMER_N], const GF b);
 #define GF_mul_N AIMER_NAMESPACE(GF_mul_N)
 void GF_mul_N(GF c[AIMER_N], const GF a[AIMER_N], const GF b);
 #define GF_mul_add AIMER_NAMESPACE(GF_mul_add)
@@ -38,11 +47,15 @@ void GF_transposed_matmul(GF c, const GF a, const GF b[AIM2_NUM_BITS_FIELD]);
 #define GF_transposed_matmul_add_N AIMER_NAMESPACE(GF_transposed_matmul_add_N)
 void GF_transposed_matmul_add_N(GF c[AIMER_N], const GF a[AIMER_N],
                                 const GF b[AIM2_NUM_BITS_FIELD]);
-
+#define GF_transposed_matmul_add_N_opt AIMER_NAMESPACE(GF_transposed_matmul_add_N_opt)
+void GF_transposed_matmul_add_N_opt(GF c[AIMER_N], const GF a[AIMER_N],
+                                    const GF matrix_exp[AIM2_NUM_BITS_FIELD]);
 #define POLY_mul_add_N AIMER_NAMESPACE(POLY_mul_add_N)
 void POLY_mul_add_N(GF lo[AIMER_N], GF hi[AIMER_N],
                     const GF a[AIMER_N], const GF b);
 #define POLY_red_N AIMER_NAMESPACE(POLY_red_N)
 void POLY_red_N(GF lo[AIMER_N], const GF hi[AIMER_N]);
+
+void eval_multi_exp_add(GF c, const GF a, const GF matrix_exp[AIM2_NUM_BITS_FIELD]);
 
 #endif // FIELD_H
