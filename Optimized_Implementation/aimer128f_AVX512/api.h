@@ -30,6 +30,7 @@ int crypto_sign_signature(uint8_t *sig, size_t *siglen,
 int crypto_sign(uint8_t *sm, size_t *smlen,
         const uint8_t *m, size_t mlen,
         const uint8_t *sk);
+int crypto_sign_AVX512(uint8_t *sm, size_t *smlen,const uint8_t *m, size_t mlen,const uint8_t *sk);
 
 #define crypto_sign_verify AIMER_NAMESPACE(crypto_sign_verify)
 int crypto_sign_verify(const uint8_t *sig, size_t siglen,

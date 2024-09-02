@@ -50,15 +50,17 @@ int main()
 
   generate_matrices_L_and_U2(matrix_L, matrix_U, vector_b, iv);
 
-  mat("LT", matrix_L[0]);
-  mat("UT", matrix_U[0]);
+  mat("LT", matrix_L[1]);
+  mat("UT", matrix_U[1]);
 
-  for (size_t i = 0; i < AIM2_NUM_BITS_FIELD; i++)
-  {
-    GF_transposed_matmul(matrix_A[0][i], matrix_U[0][i], (const GF *)matrix_L[0]);
-  }
+  // for (size_t i = 0; i < AIM2_NUM_BITS_FIELD; i++)
+  // {
+  //   GF_transposed_matmul(matrix_A[0][i], matrix_U[0][i], (const GF *)matrix_L[0]);
+  // }
+  GF_transposed_matmul_2(matrix_A[1], matrix_U[1],matrix_L[1]);
+  // GF_transposed_matmul_2(matrix_A[1], matrix_U[1],matrix_L[1]);
 
-  mat("AT", matrix_A[0]);
+  mat("AT", matrix_A[1]);
 
   return 0;
 }

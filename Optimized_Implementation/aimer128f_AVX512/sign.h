@@ -9,6 +9,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#define ALIGN2 __attribute__ ((aligned (32)))
+
 typedef struct tape_t
 {
   GF pt_share;
@@ -19,9 +21,9 @@ typedef struct tape_t
 
 typedef struct mult_chk_N_t
 {
-  GF pt_share[AIMER_N];
-  GF x_shares[AIMER_L + 1][AIMER_N];
-  GF z_shares[AIMER_L + 1][AIMER_N];
+  ALIGN2 GF pt_share[AIMER_N];
+  ALIGN2 GF x_shares[AIMER_L + 1][AIMER_N];
+  ALIGN2 GF z_shares[AIMER_L + 1][AIMER_N];
 } mult_chk_N_t;
 
 typedef struct proof_t

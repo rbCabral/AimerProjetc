@@ -6,6 +6,7 @@
 #include "params.h"
 #include <stddef.h>
 #include <stdint.h>
+#define ALIGN2 __attribute__ ((aligned (32)))
 
 typedef uint64_t GF[2];
 
@@ -35,13 +36,28 @@ void GF_sqr_N(GF c[AIMER_N], const GF a[AIMER_N]);
 
 #define GF_transposed_matmul AIMER_NAMESPACE(GF_transposed_matmul)
 void GF_transposed_matmul(GF c, const GF a, const GF b[AIM2_NUM_BITS_FIELD]);
-void GF_transposed_matmul2(GF c, const GF a, const GF b[AIM2_NUM_BITS_FIELD]);
+void GF_transposed_matmul_2(GF c[AIM2_NUM_BITS_FIELD], const GF a[AIM2_NUM_BITS_FIELD], const GF b[AIM2_NUM_BITS_FIELD]);
 #define GF_transposed_matmul_add_N AIMER_NAMESPACE(GF_transposed_matmul_add_N)
 void GF_transposed_matmul_add_N(GF c[AIMER_N], const GF a[AIMER_N],
                                 const GF b[AIM2_NUM_BITS_FIELD]);
 
 void GF_transposed_matmul_add_N_A(GF c[AIMER_N], const GF a[AIMER_N],const uint64_t bl[AIM2_NUM_BITS_FIELD],const uint64_t bh[AIM2_NUM_BITS_FIELD]);
 void GF_transposed_matmul_add_N_M(GF c[AIMER_N], const GF a[AIMER_N],const GF b[AIM2_NUM_BITS_FIELD]);
+void GF_transposed_matmul_add_N_AA(GF c[AIMER_N], const GF a[AIMER_N],const GF b[AIM2_NUM_BITS_FIELD]);
+
+void GF_transposed_matmul_add_N_A_v1(GF c[AIMER_N], const GF a[AIMER_N],const uint64_t bl[AIM2_NUM_BITS_FIELD],const uint64_t bh[AIM2_NUM_BITS_FIELD]);
+void GF_transposed_matmul_add_N_A_v2(GF c[AIMER_N], const GF a[AIMER_N],const uint64_t bl[AIM2_NUM_BITS_FIELD],const uint64_t bh[AIM2_NUM_BITS_FIELD]);
+void GF_transposed_matmul_add_N_A_v3(GF c[AIMER_N], const GF a[AIMER_N],const uint64_t bl[AIM2_NUM_BITS_FIELD],const uint64_t bh[AIM2_NUM_BITS_FIELD]);
+void GF_transposed_matmul_add_N_A_v4(GF c[AIMER_N], const GF a[AIMER_N],const uint64_t bl[AIM2_NUM_BITS_FIELD],const uint64_t bh[AIM2_NUM_BITS_FIELD]);
+void GF_transposed_matmul_add_N_A_v5(GF c[AIMER_N], const GF a[AIMER_N],const uint64_t bl[AIM2_NUM_BITS_FIELD],const uint64_t bh[AIM2_NUM_BITS_FIELD]);
+void GF_transposed_matmul_add_N_A_v6(GF c[AIMER_N], const GF a[AIMER_N],const uint64_t bl[AIM2_NUM_BITS_FIELD],const uint64_t bh[AIM2_NUM_BITS_FIELD]);
+void GF_transposed_matmul_add_N_A_v7(GF c[AIMER_N], const GF a[AIMER_N],const uint64_t bl[AIM2_NUM_BITS_FIELD],const uint64_t bh[AIM2_NUM_BITS_FIELD]);
+void GF_transposed_matmul_add_N_A_v8(GF c[AIMER_N], const GF a[AIMER_N],const uint64_t bl[AIM2_NUM_BITS_FIELD],const uint64_t bh[AIM2_NUM_BITS_FIELD]);
+void GF_transposed_matmul_add_N_A_v9(GF c[AIMER_N], const GF a[AIMER_N],const uint64_t bl[AIM2_NUM_BITS_FIELD],const uint64_t bh[AIM2_NUM_BITS_FIELD]);
+void GF_transposed_matmul_add_N_A_v11(GF c[AIMER_N], const GF a[AIMER_N],const uint64_t bl[AIM2_NUM_BITS_FIELD],const uint64_t bh[AIM2_NUM_BITS_FIELD]);
+void GF_transposed_matmul_add_N_A_v12(GF c[AIMER_N], const GF a[AIMER_N],const uint64_t bl[AIM2_NUM_BITS_FIELD],const uint64_t bh[AIM2_NUM_BITS_FIELD]);
+/*Avx2 version*/
+void GF_transposed_matmul_add_N_A_v10(GF c[AIMER_N], const GF a[AIMER_N],const uint64_t bl[AIM2_NUM_BITS_FIELD],const uint64_t bh[AIM2_NUM_BITS_FIELD]);
 
 #define POLY_mul_add_N AIMER_NAMESPACE(POLY_mul_add_N)
 void POLY_mul_add_N(GF lo[AIMER_N], GF hi[AIMER_N],
@@ -50,3 +66,5 @@ void POLY_mul_add_N(GF lo[AIMER_N], GF hi[AIMER_N],
 void POLY_red_N(GF lo[AIMER_N], const GF hi[AIMER_N]);
 
 #endif // FIELD_H
+
+

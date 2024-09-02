@@ -1,13 +1,3 @@
-# for A1 in range(2):
-#     for B1 in range(2):
-#         for C1 in range(2):
-#             for D1 in range(2):
-#                 for E1 in range(2):
-#                     for F1 in range(2):
-#                         for G1 in range(2):
-#                             for H1 in range(2):
-#                                 print(A1,B1,C1,D1,E1,F1,G1,H1)
-
 v = ['0' for _ in range(128)]
 
 def toHex(h):
@@ -16,6 +6,45 @@ def toHex(h):
     decimal = int(b, 2)
     hexadecimal = hex(decimal).zfill(8)
     print(hexadecimal)
+
+def mulT(mat0):
+    a = '00110101101100000111111011010001000001001011101000101010011110100110010010111100011111111001100100101100010000001000000011100000'
+    c = '00000011111111110000011011001001010111111101110001010001010011010000101011101011000111101111101110100011010101011100011111111000'
+    a = a[::-1]
+    # c = c[::-1]
+    s = [int(bit) for bit in a]
+    C = [int(bit) for bit in c]
+    t = [0 for _ in range(128)]
+    for i in range(128):
+        if(s[i] == 1):
+            # toHex(mat0[i])
+            for j in range(128):
+                t[j] = t[j] ^ mat0[i][j]
+    # print(t[::-1])
+    for j in range(128):
+        t[j] = t[j] ^ C[j]
+    print(t[::-1])
+
+def mul(mat0):
+    a = '00110101101100000111111011010001000001001011101000101010011110100110010010111100011111111001100100101100010000001000000011100000'
+    c = '00000011111111110000011011001001010111111101110001010001010011010000101011101011000111101111101110100011010101011100011111111000'
+    a = a[::-1]
+    # c = c[::-1]
+    s = [int(bit) for bit in a]
+    C = [int(bit) for bit in c]
+    t = [0 for _ in range(128)]
+    out = []
+    # print(s)
+    for i in range(128):
+        t = 0
+        # print(mat1[i])
+        for j in range(128):
+            t = (s[j] & mat0[i][j]) ^ t 
+        out.append(t)
+    print(out)
+    # for j in range(128):
+    #     out[j] = out[j] ^ C[j]
+    # print(out)
 
 v[0]   = '0x00000000000000000000000000000001'
 v[1]   = '0xfbcf8c1e442c8cf5b87c1159421de6c0'
@@ -147,19 +176,11 @@ v[126] = '0x69b86caf61d48d1522abf1f68e0f314a'
 v[127] = '0x1a49957d9798f177ab26c59f1090455d'
 
 mat0 = [[0 for x in range(128)] for y in range(128)]
-mat1 = [[0 for x in range(128)] for y in range(128)]#51x27 
+mat1 = [[0 for x in range(128)] for y in range(128)]
+mat2 = [[0 for x in range(128)] for y in range(128)]
 
-
-
-a = '00110101101100000111111011010001000001001011101000101010011110100110010010111100011111111001100100101100010000001000000011100000'
-c = '00000011111111110000011011001001010111111101110001010001010011010000101011101011000111101111101110100011010101011100011111111000'
-a = a[::-1]
-# c = c[::-1]
-s = [int(bit) for bit in a]
-C = [int(bit) for bit in c]
-
-# print(v)
 k=0
+#ler a matriz
 for i in v:
     h=0
     decimal = int(i, 16)  
@@ -171,6 +192,7 @@ for i in v:
         h = h+1
     k = k+1
 
+#passa para inteiro
 for i in range(128):
     for j in range(128):
         if(mat0[i][j] == '0'):
@@ -178,38 +200,44 @@ for i in range(128):
         else:
             mat0[i][j] = 1
 
+mulT(mat0)
 
-# print(s)
-t = [0 for _ in range(128)]
+
+#retornar transposta
 for i in range(128):
-    if(s[i] == 1):
-        # print(i)
-        # toHex(mat0[i])
-        for j in range(128):
-            t[j] = t[j] ^ mat0[i][j]
+    for j in range(128):
+        mat1[i][j] = mat0[j][i]
 
-print(t)            
+for i in range(128):
+    mat1[i][0:64]     = mat1[i][63::-1]
+    mat1[i][64:128]   = mat1[i][127:63:-1]
 
-for j in range(128):
-    t[j] = t[j] ^ C[j]
+for i in range(16):
+    for j in range(8):
+        mat2[i*8+j] = mat1[i*8+7-j]
+        # print(i*8+j,i*8+7-j)
 
-print(t)
 
-# print(t)
+# mul(mat1)
 
-# for i in mat0:
-#     print(i)
+# for i in mat2:
+#     toHex(i)
 
+# a = '00110101101100000111111011010001000001001011101000101010011110100110010010111100011111111001100100101100010000001000000011100000'
+# c = '00000011111111110000011011001001010111111101110001010001010011010000101011101011000111101111101110100011010101011100011111111000'
+# a = a[::-1]
+# c = c[::-1]
+# s = [int(bit) for bit in a]
+# C = [int(bit) for bit in c]
+# # t = [0 for _ in range(128)]
 # out = []
-
-# # print(mat1[0])
-
-# for j in range(128):
-#     for i in range(128):
-#         t = (s[i] & mat1[j][i]) ^ t 
+# for i in range(128):
+#     t = 0
+#     for j in range(128):
+#         t = (s[j] & mat1[i][j]) ^ t 
 #     out.append(t)
 
-# print (out)
+# print(out)
 
 # # for i in mat1:
 # #     print(i[::-1])

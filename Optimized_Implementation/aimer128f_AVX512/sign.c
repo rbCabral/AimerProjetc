@@ -21,13 +21,13 @@
 #define BENCH 1500
 // #define benchPhases
 
-static void printBytes(const uint8_t* in, int len){
-    int i;
-    for(i=0;i<len;i++){
-        printf("%.2X", in[i]);
-    }
-    printf("\n");
-}
+// static void printBytes(const uint8_t* in, int len){
+//     int i;
+//     for(i=0;i<len;i++){
+//         printf("%.2X", in[i]);
+//     }
+//     printf("\n");
+// }
 
 // void print_512(__m512i x){
 //     // uint8_t c[64];
@@ -37,9 +37,8 @@ static void printBytes(const uint8_t* in, int len){
 //     // printBytes(c,64);
 // }
 
-void commit_and_expand_tape_x8(tape_t *tapes, uint8_t *commits,uint8_t* salt,const uint8_t *seeds, size_t rep, size_t party){
+void commit_and_expand_tape_AVX512(tape_t *tapes, uint8_t *commits,uint8_t* salt,const uint8_t *seeds, size_t rep, size_t party){
   __m512i s[25];
-  // uint8_t bufs[4][AIMER_SEED_SIZE + 2];
   uint8_t bufs[4][64];
   uint8_t init[17];
   // uint8_t state[1600];
@@ -301,7 +300,7 @@ void commit_and_expand_tape_x4(tape_t *tapes, uint8_t *commits,
 }
 
 
-void aim2_mpc_N2(mult_chk_N_t *mult_chk,
+void aim2_mpc_N(mult_chk_N_t *mult_chk,
                 const GF matrix_A[AIMER_L][AIM2_NUM_BITS_FIELD], const GF ct_GF)
 {
   // pt + c = t ^ {2 ^ e - 1}
@@ -336,23 +335,28 @@ void aim2_mpc_N2(mult_chk_N_t *mult_chk,
                (const GF *)mult_chk->x_shares[AIMER_L], ct_GF);
 }
 
-void aim2_mpc_N(mult_chk_N_t *mult_chk,const GF matrix_A[AIMER_L][AIM2_NUM_BITS_FIELD], const GF ct_GF)
+void aim2_mpc_N_AVX512(mult_chk_N_t *mult_chk,const GF matrix_A[AIMER_L][AIM2_NUM_BITS_FIELD], const GF ct_GF)
 {
   // pt + c = t ^ {2 ^ e - 1}
   // --> t ^ {2 ^ e} + t * c = t * pt
   // --> z = x * pt
   GF_mul_N(mult_chk->z_shares[0], (const GF *)mult_chk->x_shares[0],aim2_constants[0]);
   
-  BENCH_FUNCTION(GF_transposed_matmul_add_N,mult_chk->z_shares[0],(const GF *)mult_chk->x_shares[0],aim2_e1_power_matrix);
-  BENCH_FUNCTION(GF_transposed_matmul_add_N_A_v1,mult_chk->z_shares[0], (const GF *)mult_chk->x_shares[0],aim2_e1_power_matrixLow,aim2_e1_power_matrixHigh);                             
-  BENCH_FUNCTION(GF_transposed_matmul_add_N_A_v2,mult_chk->z_shares[0], (const GF *)mult_chk->x_shares[0],aim2_e1_power_matrixLow,aim2_e1_power_matrixHigh);
-  BENCH_FUNCTION(GF_transposed_matmul_add_N_A_v3,mult_chk->z_shares[0], (const GF *)mult_chk->x_shares[0],aim2_e1_power_matrixLow,aim2_e1_power_matrixHigh);
-  BENCH_FUNCTION(GF_transposed_matmul_add_N_A_v4,mult_chk->z_shares[0], (const GF *)mult_chk->x_shares[0],aim2_e1_power_matrixLowT,aim2_e1_power_matrixHighT);
-  BENCH_FUNCTION(GF_transposed_matmul_add_N_A_v5,mult_chk->z_shares[0], (const GF *)mult_chk->x_shares[0],aim2_e1_power_matrixLowT,aim2_e1_power_matrixHighT);
-  BENCH_FUNCTION(GF_transposed_matmul_add_N_A_v6,mult_chk->z_shares[0], (const GF *)mult_chk->x_shares[0],aim2_e1_power_matrixLowT,aim2_e1_power_matrixHighT);
-  BENCH_FUNCTION(GF_transposed_matmul_add_N_A_v7,mult_chk->z_shares[0], (const GF *)mult_chk->x_shares[0],aim2_e1_power_matrixLowT,aim2_e1_power_matrixHighT);
+  // BENCH_FUNCTION(GF_transposed_matmul_add_N,mult_chk->z_shares[0],(const GF *)mult_chk->x_shares[0],aim2_e1_power_matrix);
+  // BENCH_FUNCTION(GF_transposed_matmul_add_N_A_v1,mult_chk->z_shares[0], (const GF *)mult_chk->x_shares[0],aim2_e1_power_matrixLow,aim2_e1_power_matrixHigh);                             
+  // BENCH_FUNCTION(GF_transposed_matmul_add_N_A_v2,mult_chk->z_shares[0], (const GF *)mult_chk->x_shares[0],aim2_e1_power_matrixLow,aim2_e1_power_matrixHigh);
+  // BENCH_FUNCTION(GF_transposed_matmul_add_N_A_v3,mult_chk->z_shares[0], (const GF *)mult_chk->x_shares[0],aim2_e1_power_matrixLow,aim2_e1_power_matrixHigh);
+  // BENCH_FUNCTION(GF_transposed_matmul_add_N_A_v4,mult_chk->z_shares[0], (const GF *)mult_chk->x_shares[0],aim2_e1_power_matrixLowT,aim2_e1_power_matrixHighT);
+  // BENCH_FUNCTION(GF_transposed_matmul_add_N_A_v5,mult_chk->z_shares[0], (const GF *)mult_chk->x_shares[0],aim2_e1_power_matrixLowT,aim2_e1_power_matrixHighT);
+  // BENCH_FUNCTION(GF_transposed_matmul_add_N_A_v6,mult_chk->z_shares[0], (const GF *)mult_chk->x_shares[0],aim2_e1_power_matrixLowT,aim2_e1_power_matrixHighT);
+  // BENCH_FUNCTION(GF_transposed_matmul_add_N_A_v7,mult_chk->z_shares[0], (const GF *)mult_chk->x_shares[0],aim2_e1_power_matrixLowT,aim2_e1_power_matrixHighT);
+  // BENCH_FUNCTION(GF_transposed_matmul_add_N_A_v8,mult_chk->z_shares[0], (const GF *)mult_chk->x_shares[0],aim2_e1_power_matrixLowT,aim2_e1_power_matrixHighT);
+  // BENCH_FUNCTION(GF_transposed_matmul_add_N_A_v9,mult_chk->z_shares[0], (const GF *)mult_chk->x_shares[0],aim2_e1_power_matrixLowT,aim2_e1_power_matrixHighT);
+  // BENCH_FUNCTION(GF_transposed_matmul_add_N_A_v10,mult_chk->z_shares[0], (const GF *)mult_chk->x_shares[0],aim2_e1_power_matrixLowT,aim2_e1_power_matrixHighT);
+  // BENCH_FUNCTION(GF_transposed_matmul_add_N_A_v11,mult_chk->z_shares[0], (const GF *)mult_chk->x_shares[0],aim2_e1_power_matrixLowT,aim2_e1_power_matrixHighT);
+  // BENCH_FUNCTION(GF_transposed_matmul_add_N_A_v12,mult_chk->z_shares[0], (const GF *)mult_chk->x_shares[0],aim2_e1_power_matrixLowT,aim2_e1_power_matrixHighT);
   // BENCH_FUNCTION(GF_transposed_matmul_add_N_A,mult_chk->z_shares[0], (const GF *)mult_chk->x_shares[0],aim2_e1_power_matrixLowT,aim2_e1_power_matrixHighT);
-  GF_transposed_matmul_add_N_A(mult_chk->z_shares[0], (const GF *)mult_chk->x_shares[0],aim2_e1_power_matrixLowT,aim2_e1_power_matrixHighT);  
+  GF_transposed_matmul_add_N_AA(mult_chk->z_shares[0], (const GF *)mult_chk->x_shares[0],aim2_e1_power_matrix);  
   // /*-------------------------*/
   // vet("VET_R_AVX", (const GF *)mult_chk->z_shares[0]);
   // GF_mul_N(mult_chk->z_shares[0], (const GF *)mult_chk->x_shares[0],aim2_constants[0]);
@@ -367,12 +371,12 @@ void aim2_mpc_N(mult_chk_N_t *mult_chk,const GF matrix_A[AIMER_L][AIM2_NUM_BITS_
   // GF_transposed_matmul_add_N_M(mult_chk->x_shares[AIMER_L],(const GF *)mult_chk->x_shares[0], matrix_A[0]);
   // vet("VET_R", mult_chk->x_shares[AIMER_L]);
   // exit(1);
-  GF_transposed_matmul_add_N(mult_chk->x_shares[AIMER_L],(const GF *)mult_chk->x_shares[0], matrix_A[0]);
+  GF_transposed_matmul_add_N_AA(mult_chk->x_shares[AIMER_L],(const GF *)mult_chk->x_shares[0], matrix_A[0]);
 
   GF_mul_N(mult_chk->z_shares[1], (const GF *)mult_chk->x_shares[1],aim2_constants[1]);
-  // GF_transposed_matmul_add_N(mult_chk->z_shares[1],(const GF *)mult_chk->x_shares[1],aim2_e2_power_matrix);
-  GF_transposed_matmul_add_N_A(mult_chk->z_shares[1], (const GF *)mult_chk->x_shares[1],aim2_e2_power_matrixLowT,aim2_e2_power_matrixHighT);
-  GF_transposed_matmul_add_N(mult_chk->x_shares[AIMER_L],(const GF *)mult_chk->x_shares[1], matrix_A[1]);
+  GF_transposed_matmul_add_N_AA(mult_chk->z_shares[1],(const GF *)mult_chk->x_shares[1],aim2_e2_power_matrix);
+  // GF_transposed_matmul_add_N_A(mult_chk->z_shares[1], (const GF *)mult_chk->x_shares[1],aim2_e2_power_matrixLowT,aim2_e2_power_matrixHighT);
+  GF_transposed_matmul_add_N_AA(mult_chk->x_shares[AIMER_L],(const GF *)mult_chk->x_shares[1], matrix_A[1]);
 
   // x ^ {2 ^ e - 1} = pt + ct
   // --> x ^ {2 ^ e} + x * ct = x * pt
@@ -383,44 +387,44 @@ void aim2_mpc_N(mult_chk_N_t *mult_chk,const GF matrix_A[AIMER_L][AIM2_NUM_BITS_
   GF_mul_add_N(mult_chk->z_shares[AIMER_L],(const GF *)mult_chk->x_shares[AIMER_L], ct_GF);
 }
 
-void aim2_mpc_N3(mult_chk_N_t *mult_chk,const GF matrix_A[AIMER_L][AIM2_NUM_BITS_FIELD], const GF ct_GF)
-{
-  // pt + c = t ^ {2 ^ e - 1}
-  // --> t ^ {2 ^ e} + t * c = t * pt
-  // --> z = x * pt
-  GF_mul_N(mult_chk->z_shares[0], (const GF *)mult_chk->x_shares[0],aim2_constants[0]);
-    // BENCH_FUNCTION(GF_transposed_matmul_add_N,mult_chk->z_shares[0],(const GF *)mult_chk->x_shares[0],aim2_e1_power_matrix);
+// void aim2_mpc_N3(mult_chk_N_t *mult_chk,const GF matrix_A[AIMER_L][AIM2_NUM_BITS_FIELD], const GF ct_GF)
+// {
+//   // pt + c = t ^ {2 ^ e - 1}
+//   // --> t ^ {2 ^ e} + t * c = t * pt
+//   // --> z = x * pt
+//   GF_mul_N(mult_chk->z_shares[0], (const GF *)mult_chk->x_shares[0],aim2_constants[0]);
+//     // BENCH_FUNCTION(GF_transposed_matmul_add_N,mult_chk->z_shares[0],(const GF *)mult_chk->x_shares[0],aim2_e1_power_matrix);
   
   
-  GF_transposed_matmul_add_N_A(mult_chk->z_shares[0], (const GF *)mult_chk->x_shares[0],aim2_e1_power_matrixLow,aim2_e1_power_matrixHigh);                             
-  vet("VET_R_AVX", (const GF *)mult_chk->z_shares[0]);
-  GF_mul_N(mult_chk->z_shares[0], (const GF *)mult_chk->x_shares[0],aim2_constants[0]);
-  vet("VET_C", mult_chk->z_shares[0]);
-  vet("VET", (const GF *)mult_chk->x_shares[0]);
-  mat("MAT", aim2_e1_power_matrix);
-  GF_transposed_matmul_add_N(mult_chk->z_shares[0],(const GF *)mult_chk->x_shares[0],aim2_e1_power_matrix);
-  vet("VET_R", mult_chk->z_shares[0]);
-  exit(1);
+//   GF_transposed_matmul_add_N_A(mult_chk->z_shares[0], (const GF *)mult_chk->x_shares[0],aim2_e1_power_matrixLow,aim2_e1_power_matrixHigh);                             
+//   vet("VET_R_AVX", (const GF *)mult_chk->z_shares[0]);
+//   GF_mul_N(mult_chk->z_shares[0], (const GF *)mult_chk->x_shares[0],aim2_constants[0]);
+//   vet("VET_C", mult_chk->z_shares[0]);
+//   vet("VET", (const GF *)mult_chk->x_shares[0]);
+//   mat("MAT", aim2_e1_power_matrix);
+//   GF_transposed_matmul_add_N(mult_chk->z_shares[0],(const GF *)mult_chk->x_shares[0],aim2_e1_power_matrix);
+//   vet("VET_R", mult_chk->z_shares[0]);
+//   exit(1);
 
-  // GF_transposed_matmul_add_N_M(mult_chk->x_shares[AIMER_L],(const GF *)mult_chk->x_shares[0], matrix_A[0]);
-  // vet("VET_R", mult_chk->x_shares[AIMER_L]);
-  // exit(1);
-  GF_transposed_matmul_add_N(mult_chk->x_shares[AIMER_L],(const GF *)mult_chk->x_shares[0], matrix_A[0]);
+//   // GF_transposed_matmul_add_N_M(mult_chk->x_shares[AIMER_L],(const GF *)mult_chk->x_shares[0], matrix_A[0]);
+//   // vet("VET_R", mult_chk->x_shares[AIMER_L]);
+//   // exit(1);
+//   GF_transposed_matmul_add_N(mult_chk->x_shares[AIMER_L],(const GF *)mult_chk->x_shares[0], matrix_A[0]);
 
-  GF_mul_N(mult_chk->z_shares[1], (const GF *)mult_chk->x_shares[1],aim2_constants[1]);
-  // GF_transposed_matmul_add_N(mult_chk->z_shares[1],(const GF *)mult_chk->x_shares[1],aim2_e2_power_matrix);
-  GF_transposed_matmul_add_N_A(mult_chk->z_shares[1], (const GF *)mult_chk->x_shares[1],aim2_e2_power_matrixLow,aim2_e2_power_matrixHigh);
-  // GF_transposed_matmul_add_N_M(mult_chk->x_shares[AIMER_L],(const GF *)mult_chk->x_shares[1], matrix_A[1]);
-  GF_transposed_matmul_add_N(mult_chk->x_shares[AIMER_L],(const GF *)mult_chk->x_shares[1], matrix_A[1]);
+//   GF_mul_N(mult_chk->z_shares[1], (const GF *)mult_chk->x_shares[1],aim2_constants[1]);
+//   // GF_transposed_matmul_add_N(mult_chk->z_shares[1],(const GF *)mult_chk->x_shares[1],aim2_e2_power_matrix);
+//   GF_transposed_matmul_add_N_A(mult_chk->z_shares[1], (const GF *)mult_chk->x_shares[1],aim2_e2_power_matrixLow,aim2_e2_power_matrixHigh);
+//   // GF_transposed_matmul_add_N_M(mult_chk->x_shares[AIMER_L],(const GF *)mult_chk->x_shares[1], matrix_A[1]);
+//   GF_transposed_matmul_add_N(mult_chk->x_shares[AIMER_L],(const GF *)mult_chk->x_shares[1], matrix_A[1]);
 
-  // x ^ {2 ^ e - 1} = pt + ct
-  // --> x ^ {2 ^ e} + x * ct = x * pt
-  // --> z = x * pt
-  GF_sqr_N(mult_chk->z_shares[AIMER_L],(const GF *)mult_chk->x_shares[AIMER_L]);
-  GF_sqr_N(mult_chk->z_shares[AIMER_L],(const GF *)mult_chk->z_shares[AIMER_L]);
-  GF_sqr_N(mult_chk->z_shares[AIMER_L],(const GF *)mult_chk->z_shares[AIMER_L]);
-  GF_mul_add_N(mult_chk->z_shares[AIMER_L],(const GF *)mult_chk->x_shares[AIMER_L], ct_GF);
-}
+//   // x ^ {2 ^ e - 1} = pt + ct
+//   // --> x ^ {2 ^ e} + x * ct = x * pt
+//   // --> z = x * pt
+//   GF_sqr_N(mult_chk->z_shares[AIMER_L],(const GF *)mult_chk->x_shares[AIMER_L]);
+//   GF_sqr_N(mult_chk->z_shares[AIMER_L],(const GF *)mult_chk->z_shares[AIMER_L]);
+//   GF_sqr_N(mult_chk->z_shares[AIMER_L],(const GF *)mult_chk->z_shares[AIMER_L]);
+//   GF_mul_add_N(mult_chk->z_shares[AIMER_L],(const GF *)mult_chk->x_shares[AIMER_L], ct_GF);
+// }
 
 // committing to the seeds and the execution views of the parties
 void run_phase_1(signature_t *sign,
@@ -457,7 +461,8 @@ void run_phase_1(signature_t *sign,
 
   // generate per-signature randomness
   uint8_t random[SECURITY_BYTES];
-  randombytes(random, SECURITY_BYTES);
+  // randombytes(random, SECURITY_BYTES);
+  hash_squeeze(&ctx, random, SECURITY_BYTES);/*MODIFICAÇÃO APENAS PARA TESTE!!!!!!!*/
 
   // generate salt
   hash_init_prefix(&ctx, HASH_PREFIX_3);
@@ -472,6 +477,7 @@ void run_phase_1(signature_t *sign,
   {
     hash_squeeze(&ctx, nodes[rep][0], AIMER_SEED_SIZE);
   }
+  // BENCH_FUNCTION(expand_trees,nodes, sign->salt);
   expand_trees(nodes, sign->salt);
 
   // hash_instance for h_1
@@ -498,9 +504,7 @@ void run_phase_1(signature_t *sign,
     for (size_t party = 0; party < AIMER_N; party += 4)
     {
       // generate execution views and commitments
-      // BENCH_FUNCTION(commit_and_expand_tape_x8,tapes, commits[rep][party], sign->salt,nodes[rep][party + AIMER_N - 1], rep, party);
       // BENCH_FUNCTION(commit_and_expand_tape_x4,tapes, commits[rep][party], &ctx_precom,nodes[rep][party + AIMER_N - 1], rep, party);
-      // commit_and_expand_tape_x8(tapes, commits[rep][party], sign->salt,nodes[rep][party + AIMER_N - 1], rep, party);
       commit_and_expand_tape_x4(tapes, commits[rep][party], &ctx_precom,nodes[rep][party + AIMER_N - 1], rep, party);
       hash_update(&ctx, commits[rep][party], 4 * AIMER_COMMIT_SIZE);
 
@@ -557,7 +561,7 @@ void run_phase_1(signature_t *sign,
 
 
 // committing to the seeds and the execution views of the parties
-void run_phase_1V2(signature_t *sign,
+void run_phase_1_AVX512(signature_t *sign,
                  uint8_t commits[AIMER_T][AIMER_N][AIMER_COMMIT_SIZE],
                  uint8_t nodes[AIMER_T][2 * AIMER_N - 1][AIMER_SEED_SIZE],
                  mult_chk_N_t mult_chk[AIMER_T],
@@ -590,7 +594,8 @@ void run_phase_1V2(signature_t *sign,
 
   // generate per-signature randomness
   uint8_t random[SECURITY_BYTES];
-  randombytes(random, SECURITY_BYTES);
+  // randombytes(random, SECURITY_BYTES);
+  hash_squeeze(&ctx, random, SECURITY_BYTES);/*MODIFICAÇÃO APENAS PARA TESTE!!!!!!!*/
 
   // generate salt
   hash_init_prefix(&ctx, HASH_PREFIX_3);
@@ -605,7 +610,9 @@ void run_phase_1V2(signature_t *sign,
   {
     hash_squeeze(&ctx, nodes[rep][0], AIMER_SEED_SIZE);
   }
-  expand_trees(nodes, sign->salt);
+  // BENCH_FUNCTION(expand_trees_AVX512,nodes, sign->salt);
+  expand_trees_AVX512(nodes, sign->salt);
+  
 
   // hash_instance for h_1
   hash_init_prefix(&ctx, HASH_PREFIX_1);
@@ -631,9 +638,8 @@ void run_phase_1V2(signature_t *sign,
     for (size_t party = 0; party < AIMER_N; party += 8)
     {
       // generate execution views and commitments
-      // BENCH_FUNCTION(commit_and_expand_tape_x8,tapes, commits[rep][party], sign->salt,nodes[rep][party + AIMER_N - 1], rep, party);
-      commit_and_expand_tape_x8(tapes, commits[rep][party], sign->salt,nodes[rep][party + AIMER_N - 1], rep, party);
-      // commit_and_expand_tape_x4(tapes, commits[rep][party], &ctx_precom,nodes[rep][party + AIMER_N - 1], rep, party);
+      // BENCH_FUNCTION(commit_and_expand_tape_AVX512,tapes, commits[rep][party], sign->salt,nodes[rep][party + AIMER_N - 1], rep, party);
+      commit_and_expand_tape_AVX512(tapes, commits[rep][party], sign->salt,nodes[rep][party + AIMER_N - 1], rep, party);
       hash_update(&ctx, commits[rep][party], 8 * AIMER_COMMIT_SIZE);
 
       for (size_t j = 0; j < 8; j++)
@@ -672,7 +678,8 @@ void run_phase_1V2(signature_t *sign,
         GF_copy(alpha_v_shares[rep][1][party + j], tapes[j].c_share);
       }
     }
-    aim2_mpc_N(&mult_chk[rep], (const GF (*)[AIM2_NUM_BITS_FIELD])matrix_A,ct_GF);
+    // BENCH_FUNCTION(aim2_mpc_N_AVX512,&mult_chk[rep], (const GF (*)[AIM2_NUM_BITS_FIELD])matrix_A,ct_GF);
+    aim2_mpc_N_AVX512(&mult_chk[rep], (const GF (*)[AIM2_NUM_BITS_FIELD])matrix_A,ct_GF);
 
     // NOTE: depend on the order of values in proof_t
     hash_update(&ctx, sign->proofs[rep].delta_pt_bytes,AIM2_NUM_BYTES_FIELD * (AIMER_L + 2));
@@ -784,9 +791,7 @@ int crypto_sign_signature(uint8_t *sig, size_t *siglen,
                   BENCH_FUNCTION(run_phase_1,sign, commits, (uint8_t (*)[2 * AIMER_N - 1][AIMER_SEED_SIZE])nodes, mult_chk, alpha_v_shares, sk, m, mlen);  
   #endif
 
-  // BENCH_FUNCTION(run_phase_1V2,sign, commits,(uint8_t (*)[2 * AIMER_N - 1][AIMER_SEED_SIZE])nodes, mult_chk,alpha_v_shares, sk, m, mlen);
   // BENCH_FUNCTION(run_phase_1,sign, commits, (uint8_t (*)[2 * AIMER_N - 1][AIMER_SEED_SIZE])nodes, mult_chk, alpha_v_shares, sk, m, mlen);
-  // run_phase_1V2(sign, commits,(uint8_t (*)[2 * AIMER_N - 1][AIMER_SEED_SIZE])nodes, mult_chk,alpha_v_shares, sk, m, mlen);
   run_phase_1(sign, commits,(uint8_t (*)[2 * AIMER_N - 1][AIMER_SEED_SIZE])nodes, mult_chk,alpha_v_shares, sk, m, mlen);
 
   /////////////////////////////////////////////////////////////////
@@ -835,11 +840,88 @@ int crypto_sign_signature(uint8_t *sig, size_t *siglen,
   return 0;
 }
 
+int crypto_sign_signature_AVX512(uint8_t *sig, size_t *siglen,const uint8_t *m, size_t mlen,const uint8_t *sk)
+{
+  hash_instance ctx;
+  signature_t *sign = (signature_t *)sig;
+
+  //////////////////////////////////////////////////////////////////////////
+  // Phase 1: Committing to the seeds and the execution views of parties. //
+  //////////////////////////////////////////////////////////////////////////
+
+  // nodes for seed trees
+  uint8_t nodes[AIMER_T][2 * AIMER_N - 1][AIMER_SEED_SIZE];
+
+  // commitments for seeds
+  uint8_t commits[AIMER_T][AIMER_N][AIMER_COMMIT_SIZE];
+
+  // multiplication check inputs
+  mult_chk_N_t mult_chk[AIMER_T];
+
+  // multiplication check outputs
+  GF alpha_v_shares[AIMER_T][2][AIMER_N];
+
+  // BENCH_FUNCTION(run_phase_1_AVX512,sign, commits,(uint8_t (*)[2 * AIMER_N - 1][AIMER_SEED_SIZE])nodes, mult_chk,alpha_v_shares, sk, m, mlen);
+  run_phase_1_AVX512(sign, commits,(uint8_t (*)[2 * AIMER_N - 1][AIMER_SEED_SIZE])nodes, mult_chk,alpha_v_shares, sk, m, mlen);
+
+  /////////////////////////////////////////////////////////////////
+  // Phase 2, 3: Challenging and committing to the simulation of //
+  //             the multiplication checking protocol.           //
+  /////////////////////////////////////////////////////////////////
+
+  // compute the commitment of phase 3
+  run_phase_2_and_3(sign, alpha_v_shares, mult_chk);
+
+  //////////////////////////////////////////////////////
+  // Phase 4: Challenging views of the MPC protocols. //
+  //////////////////////////////////////////////////////
+
+  hash_init(&ctx);
+  hash_update(&ctx, sign->h_2, AIMER_COMMIT_SIZE);
+  hash_final(&ctx);
+
+  uint8_t indices[AIMER_T]; // AIMER_N <= 256
+  hash_squeeze(&ctx, indices, AIMER_T);
+  for (size_t rep = 0; rep < AIMER_T; rep++)
+  {
+    indices[rep] &= (1 << AIMER_LOGN) - 1;
+  }
+
+  //////////////////////////////////////////////////////
+  // Phase 5: Opening the views of the MPC protocols. //
+  //////////////////////////////////////////////////////
+
+  crypto_declassify(indices, sizeof(indices));
+  for (size_t rep = 0; rep < AIMER_T; rep++)
+  {
+    size_t i_bar = indices[rep];
+    reveal_all_but(sign->proofs[rep].reveal_path,
+                   (const uint8_t (*)[AIMER_SEED_SIZE])nodes[rep], i_bar);
+    memcpy(sign->proofs[rep].missing_commitment, commits[rep][i_bar],
+           AIMER_COMMIT_SIZE);
+    GF_to_bytes(sign->proofs[rep].missing_alpha_share_bytes,
+                alpha_v_shares[rep][0][i_bar]);
+  }
+  *siglen = CRYPTO_BYTES;
+
+  return 0;
+}
+
 int crypto_sign(uint8_t *sm, size_t *smlen,
         const uint8_t *m, size_t mlen,
         const uint8_t *sk)
 {
   crypto_sign_signature(sm + mlen, smlen, m, mlen, sk);
+
+  memcpy(sm, m, mlen);
+  *smlen += mlen;
+
+  return 0;
+}
+
+int crypto_sign_AVX512(uint8_t *sm, size_t *smlen,const uint8_t *m, size_t mlen,const uint8_t *sk)
+{
+  crypto_sign_signature_AVX512(sm + mlen, smlen, m, mlen, sk);
 
   memcpy(sm, m, mlen);
   *smlen += mlen;

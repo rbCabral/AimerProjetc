@@ -9,9 +9,7 @@
 #include "../bench.h"
 
 
-#define BENCH 70
-
-
+#define BENCH 30
 
 #define MLEN 59
 #define NTESTS 5
@@ -19,7 +17,7 @@
 int main(void)
 {
   size_t i, j;
-  size_t mlen, smlen;
+  size_t mlen, smlen,smlen2;
   uint8_t b;
   uint8_t m[MLEN + CRYPTO_BYTES];
   uint8_t m2[MLEN + CRYPTO_BYTES];
@@ -27,15 +25,29 @@ int main(void)
   uint8_t pk[CRYPTO_PUBLICKEYBYTES];
   uint8_t sk[CRYPTO_SECRETKEYBYTES];
 
+  uint8_t sm2[MLEN + CRYPTO_BYTES];
+
   for (i = 0; i < NTESTS; ++i)
   {
     int ret = 0;
 
     randombytes(m, MLEN);
+    
+
 
     crypto_sign_keypair(pk, sk);
-    // BENCH_FUNCTION(crypto_sign,sm, &smlen, m, MLEN, sk);
-    crypto_sign(sm, &smlen, m, MLEN, sk);
+    
+    crypto_sign_AVX512(sm, &smlen, m, MLEN, sk);
+    crypto_sign(sm2, &smlen2, m, MLEN, sk);
+    
+    for (size_t i = 0; i < smlen; ++i) {
+        if (sm[i] != sm2[i]) {
+            printf("Error!!!");
+            exit(1);
+        }
+    }
+  printf("Ok!\n");
+
 
     ret = crypto_sign_open(m2, &mlen, sm, smlen, pk);
 

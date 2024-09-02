@@ -10,6 +10,8 @@
 #define expand_trees AIMER_NAMESPACE(expand_trees)
 void expand_trees(uint8_t nodes[AIMER_T][2 * AIMER_N - 1][AIMER_SEED_SIZE],
                   const uint8_t salt[AIMER_SALT_SIZE]);
+void expand_trees_AVX512(uint8_t nodes[AIMER_T][2 * AIMER_N - 1][AIMER_SEED_SIZE],
+                  const uint8_t salt[AIMER_SALT_SIZE]);                      
 
 #define reveal_all_but AIMER_NAMESPACE(reveal_all_but)
 void reveal_all_but(uint8_t reveal_path[AIMER_LOGN][AIMER_SEED_SIZE],
